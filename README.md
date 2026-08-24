@@ -1,4 +1,4 @@
-# [Your Project Name]
+# MyHomeLib
 
 <!-- CI badge: after Session 4, replace ORG/REPO and the workflow filename, then uncomment:
 ![CI](https://github.com/ORG/REPO/actions/workflows/ci.yml/badge.svg)
@@ -9,7 +9,13 @@
 ## Project (approval paragraph — write this by Sun Aug 30)
 
 [One paragraph: What is the system? Who is it for? What are its 3–4 core features?
-This paragraph is your approval request — see the Project Brief, Section 2.]
+This paragraph is your approval request — see the Project Brief, Section 2.]d
+
+- mobile app
+- for me or other bibliophiles
+- qr code scan into the database
+- list for webscraped online store prices/availability of wanted books
+- tbr, owned, wanted
 
 ## How to run
 
