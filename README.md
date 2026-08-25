@@ -1,15 +1,15 @@
-# [Your Project Name]
+# MyHomeLib
 
 <!-- CI badge: after Session 4, replace ORG/REPO and the workflow filename, then uncomment:
 ![CI](https://github.com/ORG/REPO/actions/workflows/ci.yml/badge.svg)
 -->
 
-**Student:** [Your Name] · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@partner-github-username]
+**Student:** Grace Hechavarria · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@YousufTheSWE]
 
 ## Project (approval paragraph — write this by Sun Aug 30)
-
-[One paragraph: What is the system? Who is it for? What are its 3–4 core features?
-This paragraph is your approval request — see the Project Brief, Section 2.]
+```
+MyHomeLib is a mobile app designed for me and other bibliophiles who want an easy way to catalog and manage their personal book collections. The app's core features include: (1) barcode/ISBN scanning that looks up book metadata via an API or database to instantly add titles to a personal library, (2) a want-list tracker that web-scrapes online bookstores for current prices and availability on books the user wants to buy, and (3) three organizational shelves — To Be Read (TBR), Owned, and Wanted — that let users track where each book stands in their collection and reading journey. Together, these features turn a scattered personal library into a searchable, organized, and shopping-aware digital collection.
+```
 
 ## How to run
 
