@@ -25,10 +25,10 @@ instructor will follow it literally on conference days.]
 
 | Tier | Responsibilities in THIS system |
 |------|--------------------------------|
-| Presentation | [what your UI layer does] |
-| Service | [what your use-case/orchestration layer does] |
-| Domain | [your entities and business rules] |
-| Data | [how and where data is stored] |
+| Presentation | [what your UI layer does] Mobile screens and UI components: the scan screen (camera/barcode input), the three shelf views (TBR, Owned, Wanted), book detail view, and the want-list view showing prices. Sends requests to the backend (scan a barcode, refresh want-list) and renders responses. No business logic, no direct API or scraping calls from the device. |
+| Service | [what your use-case/orchestration layer does] Backend orchestration layer that coordinates Domain and Data: ScanBookUseCase (receives an ISBN from the app, calls the metadata API, builds a Book, saves it to a shelf), RefreshWantListUseCase (runs the scraper for each Wanted book, updates prices/availability), MoveBookToShelfUseCase (validates and executes shelf transitions). This is where the ISBN-lookup API call and the scraping jobs are triggered, with results translated into Domain objects before going back to the app.|
+| Domain | [your entities and business rules] Core entities and rules independent of any framework, storage, or transport: Book (title, author, ISBN, cover, etc.), Shelf (enum: TBR / Owned / Wanted), WantListItem (book + tracked price/availability), and rules like "a book can only be on one shelf at a time" or "a Wanted book needs at least one tracked source to appear in the want-list."|
+| Data | [how and where data is stored] Persistence and external data access, all server-side: the database storing each user's library and shelf assignments, the ISBN-lookup API client (e.g., Google Books/Open Library), and the web-scraping client that pulls prices/availability from bookstore sites. Exposes repository interfaces the Service tier consumes, hiding the actual storage/scraping mechanism from everything above it.|
 
 ### C4 — Context & Container (Session 3 studio)
 
