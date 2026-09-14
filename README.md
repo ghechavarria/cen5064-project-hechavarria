@@ -32,48 +32,91 @@ instructor will follow it literally on conference days.]
 
 ### C4 — Context & Container (Session 3 studio)
 
-```mermaid
-%% Replace this placeholder with YOUR system's context diagram.
-flowchart TB
-    user([User]) -->|uses| system[Your System]
-    system -->|stores data in| db[(Database)]
-```
+**Context** — what this is and who it is for. One system box, the person who uses it, and the external systems it talks to. Internals (database, tiers, shelves) belong at Container.
 
 ```mermaid
-%% Container view: your containers should match the tier table above.
+flowchart LR
+    user([Bibliophile]) -->|catalogs and tracks books| system[MyHomeLib]
+    system -->|looks up ISBN metadata| isbnApi[Google Books / Open Library]
+    system -->|scrapes prices and availability| stores[Online Bookstores]
+```
+
+**Container** — the four tiers made concrete. Calls flow Presentation → Service → Domain and Data, never backwards. Data hides the database, ISBN client, and scraper from everything above it.
+
+```mermaid
 flowchart TB
-    subgraph YourSystem [Your System]
-        ui[Web UI / CLI<br/>Presentation] --> api[Application / Service]
-        api --> domain[Domain Model]
-        domain --> db[(Database<br/>Data tier)]
+    user([Bibliophile]) -->|uses| ui
+    subgraph MyHomeLib [MyHomeLib]
+        ui[Mobile App<br/>Presentation]
+        service[Backend Service]
+        domain[Domain Model]
+        data[Data Access]
+        db[(Library Database)]
+        ui -->|scan, move shelf, refresh want-list| service
+        service -->|builds and validates| domain
+        service -->|save and load via repositories| data
+        data --> db
     end
+    data -->|ISBN metadata| isbnApi[Google Books / Open Library]
+    data -->|prices and availability| stores[Online Bookstores]
 ```
 
 ### UML — Class & Sequence (Session 3 studio)
 
-```mermaid
-%% Class diagram: your 3–4 core domain classes.
-classDiagram
-    class ExampleEntity {
-        -id: Long
-        -name: String
-        +doSomething()
-    }
-```
+**Class diagram** — 3–4 core domain classes with real attributes. A book is on exactly one shelf; only Wanted books have tracked sources.
 
 ```mermaid
-%% Sequence diagram: ONE core use case, end to end.
+classDiagram
+    class PersonalLibrary {
+        -ownerId: String
+        +addBook(book)
+        +booksOn(shelf) List
+    }
+    class Book {
+        -isbn: String
+        -title: String
+        -author: String
+        -coverUrl: String
+        -publisher: String
+        +moveTo(shelf)
+        +isWanted() boolean
+    }
+    class Shelf {
+        <<enumeration>>
+        TBR
+        OWNED
+        WANTED
+    }
+    class WantListItem {
+        -listedPrice: Decimal
+        -available: boolean
+        -sourceName: String
+        -sourceUrl: String
+        -lastCheckedAt: DateTime
+        +isStale() boolean
+    }
+    PersonalLibrary "1" --> "*" Book : catalogs
+    Book "*" --> "1" Shelf : currently on
+    Book "0..1" --> "*" WantListItem : tracked by
+```
+
+**Sequence diagram** — #1 use case, ScanBookUseCase. Calls flow UI → Service → Data; `-->>` is a return.
+
+```mermaid
 sequenceDiagram
-    actor U as User
-    participant UI
-    participant S as Service
+    actor U as Bibliophile
+    participant UI as Mobile App
+    participant S as ScanBookUseCase
     participant D as Data
-    U->>UI: action
-    UI->>S: request
-    S->>D: save/load
-    D-->>S: result
-    S-->>UI: response
-    UI-->>U: confirmation
+    U->>UI: scan barcode / enter ISBN
+    UI->>S: scanBook(isbn, targetShelf)
+    S->>D: lookupMetadata(isbn)
+    D-->>S: title, author, cover
+    Note over S: build Book, one shelf only
+    S->>D: save(book)
+    D-->>S: book id
+    S-->>UI: Book
+    UI-->>U: show on chosen shelf
 ```
 
 ## Architecture Decision Records
