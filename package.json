@@ -1,0 +1,35 @@
+{
+  "name": "myhomelib",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "node scripts/start-expo.cjs",
+    "android": "node scripts/start-expo.cjs --android",
+    "ios": "node scripts/start-expo.cjs --ios",
+    "web": "node scripts/start-expo.cjs --web",
+    "test": "jest --config jest.config.js"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.16",
+    "@expo/vector-icons": "^15.0.2",
+    "expo": "^57.0.24",
+    "expo-asset": "^57.0.18",
+    "expo-camera": "~57.0.5",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.2.4",
+    "babel-preset-expo": "~57.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "~6.0.3"
+  },
+  "private": true
+}
