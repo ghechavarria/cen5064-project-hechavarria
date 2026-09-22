@@ -1,23 +1,26 @@
 # MyHomeLib
 
-<!-- CI badge: after Session 4, replace ORG/REPO and the workflow filename, then uncomment:
-![CI](https://github.com/ORG/REPO/actions/workflows/ci.yml/badge.svg)
--->
-
 **Student:** Grace Hechavarria · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@YousufTheSWE]
 
-## Project (approval paragraph — write this by Sun Aug 30)
+## Project (approval paragraph)
+
 ```
-MyHomeLib is a mobile app designed for me and other bibliophiles who want an easy way to catalog and manage their personal book collection. The app's core features include: (1) barcode/ISBN scanning that looks up book metadata via an API or database to instantly add titles to a personal library, (2) a want-list tracker that web-scrapes online bookstores for current prices and availability on books the user wants to buy, and (3) three organizational shelves — To Be Read (TBR), Owned, and Wanted — that let users track where each book stands in their collection and reading journey. Together, these features turn a scattered personal library into a searchable, organized, and shopping-aware digital collection.
+MyHomeLib is a cross-platform Expo Go app (React Native) for bibliophiles who catalog a personal library. It runs on iPhone and Android through the free Expo Go client — not an App Store / Play binary, and not an Xcode or Android Studio project — so a partner can clone the repo and run it without a Mac. Conference fallback: Expo web in a browser (webcam ISBN scan). Core features: (1) ISBN camera scan (typed ISBN fallback) that looks up metadata from Open Library (the only external integration; no API key), including series, description, year, pages, and subjects, (2) Owned vs Wanted, with TBR as the Owned unread/read list and an Owned catalog (A–Z / author / series), and (3) Domain rules: scanning an ISBN already in the library increments a copy count instead of adding a second row; a Wanted book cannot move to Owned unless it is marked purchased or gifted (gifted requires the giver’s name). There is no bookstore web scraping.
 ```
 
 ## How to run
 
+Requires Node.js LTS. No Python, no Xcode, no Android Studio, no paid developer account.
+
 ```
-[Exact commands to build and run your system from a clean clone.
-Update this every time the steps change — your partner and your
-instructor will follow it literally on conference days.]
+npm install
+npm start
 ```
+
+- Phone: install free **Expo Go**, then scan the QR code (same Wi-Fi, or use the tunnel option Expo prints). Open **Scan** and allow the camera; point it at the ISBN barcode on the book.
+- No phone: in the Expo terminal press `w` (or `npm start -- --web`). Allow the webcam, or type the ISBN.
+
+Tests: `npm test`.
 
 ## Architecture
 
@@ -25,111 +28,118 @@ instructor will follow it literally on conference days.]
 
 | Tier | Responsibilities in THIS system |
 |------|--------------------------------|
-| Presentation | [what your UI layer does] Mobile screens and UI components: the scan screen (camera/barcode input), the three shelf views (TBR, Owned, Wanted), book detail view, and the want-list view showing prices. Sends requests to the backend (scan a barcode, refresh want-list) and renders responses. No business logic, no direct API or scraping calls from the device. |
-| Service | [what your use-case/orchestration layer does] Backend orchestration layer that coordinates Domain and Data: ScanBookUseCase (receives an ISBN from the app, calls the metadata API, builds a Book, saves it to a shelf), RefreshWantListUseCase (runs the scraper for each Wanted book, updates prices/availability), MoveBookToShelfUseCase (validates and executes shelf transitions). This is where the ISBN-lookup API call and the scraping jobs are triggered, with results translated into Domain objects before going back to the app.|
-| Domain | [your entities and business rules] Core entities and rules independent of any framework, storage, or transport: Book (title, author, ISBN, cover, etc.), Shelf (enum: TBR / Owned / Wanted), WantListItem (book + tracked price/availability), and rules like "a book can only be on one shelf at a time" or "a Wanted book needs at least one tracked source to appear in the want-list."|
-| Data | [how and where data is stored] Persistence and external data access, all server-side: the database storing each user's library and shelf assignments, the ISBN-lookup API client (e.g., Google Books/Open Library), and the web-scraping client that pulls prices/availability from bookstore sites. Exposes repository interfaces the Service tier consumes, hiding the actual storage/scraping mechanism from everything above it.|
+| Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan**. Dark forest theme. TBR is the Owned reading list (Unread / Read tabs). Owned is the full catalog (tally; A–Z letter rail, Author, or Series from Open Library). Wanted is the wanted list. Scan uses the device camera or web webcam outside a ScrollView; lookup shows a cover confirm popup, then Owned/Wanted and Read/Unread (skipped for a duplicate ISBN); typed ISBN fallback. Detail: Open Library facts, mark read/unread, Wanted → Owned (purchased/gifted popups), delete with confirm. Flash banners auto-dismiss after 3 seconds. Calls `LookupIsbnUseCase` / `ScanBookUseCase` / `MoveBookToShelfUseCase` / `SetReadingStatusUseCase` / `DeleteBookUseCase`. |
+| Service | Orchestration. `LookupIsbnUseCase` (no save) then `ScanBookUseCase` after UI confirm; also `MoveBookToShelfUseCase`, `SetReadingStatusUseCase`, `DeleteBookUseCase`. Duplicate ISBN increments copies. Service never contains SQL, `fetch`, or React. |
+| Domain | `Book` (isbn, title, author, cover, publisher, shelf OWNED/WANTED, readingStatus UNREAD/READ, series, description, published, pageCount, subjects, copyCount, acquiredAs, giftedBy). TBR is a view of Owned unread/read, not a third exclusive shelf. Wanted→Owned requires purchased or gifted. |
+| Data | Persistence and the single external integration. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner’s books plus Open Library cache (series, description, year, pages, subjects). Legacy TBR rows migrate to Owned + unread; old collection names copy into series. On Expo web / tests, JSON/memory. `OpenLibraryIsbnLookup` is the only outbound HTTP (`search.json` + `isbn/{isbn}.json` + work JSON when series is missing, no API key). No bookstore scraping. |
 
 ### C4 — Context & Container (Session 3 studio)
 
-**Context** — what this is and who it is for. One system box, the person who uses it, and the external systems it talks to. Internals (database, tiers, shelves) belong at Container.
+**Context** — what this is and who it is for. One system box, the person who uses it, and the external systems it talks to. Internals (SQLite, Expo, shelves) belong at Container.
 
 ```mermaid
 flowchart LR
-    user([Bibliophile]) -->|catalogs and tracks books| system[MyHomeLib]
-    system -->|looks up ISBN metadata| isbnApi[Google Books / Open Library]
-    system -->|scrapes prices and availability| stores[Online Bookstores]
+    user([Bibliophile]) -->|catalogs books| system[MyHomeLib]
+    system -->|looks up ISBN metadata| isbnApi[Open Library]
 ```
 
-**Container** — the four tiers made concrete. Calls flow Presentation → Service → Domain and Data, never backwards. Data hides the database, ISBN client, and scraper from everything above it.
+**Container** — the Lecture 1 four-tier table made concrete. Calls flow Presentation → Service → Domain and Data, never backwards. Domain does not depend on Data.
 
 ```mermaid
 flowchart TB
     user([Bibliophile]) -->|uses| ui
     subgraph MyHomeLib [MyHomeLib]
-        ui[Mobile App<br/>Presentation]
-        service[Backend Service]
+        ui["Expo Go screens\nPresentation"]
+        service[Application Service]
         domain[Domain Model]
-        data[Data Access]
-        db[(Library Database)]
-        ui -->|scan, move shelf, refresh want-list| service
+        data["Data (SQLite / JSON)"]
+        ui -->|scan, move, set reading, delete| service
         service -->|builds and validates| domain
         service -->|save and load via repositories| data
-        data --> db
     end
-    data -->|ISBN metadata| isbnApi[Google Books / Open Library]
-    data -->|prices and availability| stores[Online Bookstores]
+    data -->|ISBN metadata| isbnApi[Open Library]
 ```
 
 ### UML — Class & Sequence (Session 3 studio)
 
-**Class diagram** — 3–4 core domain classes with real attributes. A book is on exactly one shelf; only Wanted books have tracked sources.
+**Class diagram** — four core domain types with the attributes the rules use. Duplicate ISBN increments copies; leaving Wanted requires purchased or gifted; read/unread is independent of Owned/Wanted.
 
 ```mermaid
 classDiagram
     class PersonalLibrary {
         -ownerId: String
         +addBook(book)
-        +booksOn(shelf) List
+        +get(isbn) Book
+        +remove(isbn)
     }
     class Book {
         -isbn: String
         -title: String
-        -author: String
-        -coverUrl: String
-        -publisher: String
+        -copyCount: int
+        -shelf: Shelf
+        -readingStatus: ReadingStatus
+        -acquiredAs: Acquisition
+        -giftedBy: String
+        +addCopy()
         +moveTo(shelf)
-        +isWanted() boolean
+        +markPurchased()
+        +markGifted(name)
     }
     class Shelf {
         <<enumeration>>
-        TBR
         OWNED
         WANTED
     }
-    class WantListItem {
-        -listedPrice: Decimal
-        -available: boolean
-        -sourceName: String
-        -sourceUrl: String
-        -lastCheckedAt: DateTime
-        +isStale() boolean
+    class ReadingStatus {
+        <<enumeration>>
+        UNREAD
+        READ
     }
     PersonalLibrary "1" --> "*" Book : catalogs
-    Book "*" --> "1" Shelf : currently on
-    Book "0..1" --> "*" WantListItem : tracked by
+    Book "*" --> "1" Shelf : owned or wanted
+    Book "*" --> "1" ReadingStatus : read or unread
 ```
 
-**Sequence diagram** — #1 use case, ScanBookUseCase. Calls flow UI → Service → Data; `-->>` is a return.
+**Sequence diagram** — #1 use case: lookup (no save) → UI confirm → ScanBookUseCase save. `->>` is a call, `-->>` is a return. Participants are UI / Service / Repository.
 
 ```mermaid
 sequenceDiagram
     actor U as Bibliophile
-    participant UI as Mobile App
-    participant S as ScanBookUseCase
-    participant D as Data
-    U->>UI: scan barcode / enter ISBN
-    UI->>S: scanBook(isbn, targetShelf)
-    S->>D: lookupMetadata(isbn)
-    D-->>S: title, author, cover
-    Note over S: build Book, one shelf only
-    S->>D: save(book)
-    D-->>S: book id
+    participant UI as Expo screens
+    participant S as Service
+    participant R as Repository
+    U->>UI: scan ISBN barcode
+    UI->>S: lookupIsbn(isbn)
+    Note over S: LookupIsbnUseCase — no save
+    S->>R: byIsbn(isbn)
+    R-->>S: metadata
+    S-->>UI: title, author, cover
+    Note over UI: user confirms this is the book
+    UI->>S: scanBook(isbn, shelf, readingStatus)
+    S->>S: addCopy if ISBN already in library
+    Note over S: duplicate ISBN is a copy, not a second row
+    S->>R: save(book)
+    R-->>S: book
     S-->>UI: Book
-    UI-->>U: show on chosen shelf
+    UI-->>U: show on TBR or Wanted
 ```
 
 ## Architecture Decision Records
 
-Decisions live in [`docs/adr/`](docs/adr/). Start with ADR-001 in Session 4.
+Decisions live in [`docs/adr/`](docs/adr/). File walkthrough for code review: [`docs/code-review.md`](docs/code-review.md).
 
 | # | Decision | Status |
 |---|----------|--------|
-| [001](docs/adr/adr-001.md) | [What I am building and why] | [proposed] |
+| [001](docs/adr/adr-001.md) | TypeScript + Expo Go 4-tier monolith | accepted |
+| [002](docs/adr/adr-002.md) | SQLite (device) / JSON fallback (web) | accepted |
+| [003](docs/adr/adr-003.md) | Open Library for ISBN (no key) | accepted |
+| [004](docs/adr/adr-004.md) | No bookstore scraping | accepted |
+| [005](docs/adr/adr-005.md) | Expo Go, not App Store / Xcode | accepted |
 
 ## Weekly log (optional but recommended)
 
-A one-line note per week keeps your commit story readable:
-
 - Week 1 (Aug 24): repo created, three ideas drafted
-- Week 2 (Aug 31): ...
+- Week 2 (Aug 31): Tier Breakdown  
+- Week 3 (Sep 07): C4 Models / Architecture
+- Week 4 ( Break ) ...
+- Week 5 (Sep 21): Initial Architecture/Logic and Design Creation #3 Issue created. Changes pushed to a PR for review.

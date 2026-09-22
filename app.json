@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "MyHomeLib",
+    "slug": "myhomelib",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "edu.fiu.cen5064.myhomelib"
+    },
+    "android": {
+      "package": "edu.fiu.cen5064.myhomelib"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MyHomeLib uses the camera to scan ISBN barcodes on books.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
+  }
+}
