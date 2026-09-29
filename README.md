@@ -142,4 +142,5 @@ Decisions live in [`docs/adr/`](docs/adr/). File walkthrough for code review: [`
 - Week 2 (Aug 31): Tier Breakdown  
 - Week 3 (Sep 07): C4 Models / Architecture
 - Week 4 ( Break ) ...
-- Week 5 (Sep 21): Initial Architecture/Logic and Design Creation #3 Issue created. Changes pushed to a PR for review.
+- Week 5 (Sep 21): Initial Architecture/Logic and Design Creation #3 Issue created. Changes pushed to a PR for review
+- Week 6 (Sep 28): Enforce acquisition requirements when moving Wanted books to Owned #5 issue created, fixed and tested

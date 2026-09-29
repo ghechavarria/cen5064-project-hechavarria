@@ -4,7 +4,7 @@
 import { Acquisition, ReadingStatus, Shelf } from "../domain";
 import { MemoryBookRepository } from "../data/bookRepository";
 import { FakeIsbnLookup, OpenLibraryIsbnLookup } from "../data/isbnLookup";
-import { BookNotFoundError, NotAcquiredError } from "../domain/exceptions";
+import { BookNotFoundError, GiftSourceRequiredError, NotAcquiredError } from "../domain/exceptions";
 import {
   DeleteBookUseCase,
   FillMissingFactsUseCase,
@@ -93,6 +93,67 @@ test("gifted wanted book records gifter", async () => {
     giftedBy: "Sam",
   });
   expect(gifted.giftedBy).toBe("Sam");
+});
+
+test("purchased move saves acquisition and reading status", async () => {
+  const { repo, scan, move } = stack();
+  await scan.execute("local", FOX.isbn, Shelf.WANTED);
+  await move.execute("local", FOX.isbn, Shelf.OWNED, {
+    type: Acquisition.PURCHASED,
+  });
+  const saved = (await repo.loadLibrary("local")).get(FOX.isbn);
+  expect(saved.shelf).toBe(Shelf.OWNED);
+  expect(saved.acquiredAs).toBe(Acquisition.PURCHASED);
+  expect(saved.giftedBy).toBeNull();
+  expect(saved.readingStatus).toBe(ReadingStatus.UNREAD);
+});
+
+test("gifted move saves the giver", async () => {
+  const { repo, scan, move } = stack();
+  await scan.execute("local", FOX.isbn, Shelf.WANTED);
+  await move.execute("local", FOX.isbn, Shelf.OWNED, {
+    type: Acquisition.GIFTED,
+    giftedBy: "Sam",
+  });
+  const saved = (await repo.loadLibrary("local")).get(FOX.isbn);
+  expect(saved.shelf).toBe(Shelf.OWNED);
+  expect(saved.acquiredAs).toBe(Acquisition.GIFTED);
+  expect(saved.giftedBy).toBe("Sam");
+});
+
+test("move without acquisition leaves the saved book wanted", async () => {
+  const { repo, scan, move } = stack();
+  await scan.execute("local", FOX.isbn, Shelf.WANTED);
+  await expect(move.execute("local", FOX.isbn, Shelf.OWNED)).rejects.toBeInstanceOf(
+    NotAcquiredError,
+  );
+  const saved = (await repo.loadLibrary("local")).get(FOX.isbn);
+  expect(saved.shelf).toBe(Shelf.WANTED);
+  expect(saved.acquiredAs).toBeNull();
+});
+
+test("empty giver leaves the saved book wanted", async () => {
+  const { repo, scan, move } = stack();
+  await scan.execute("local", FOX.isbn, Shelf.WANTED);
+  await expect(
+    move.execute("local", FOX.isbn, Shelf.OWNED, {
+      type: Acquisition.GIFTED,
+      giftedBy: "",
+    }),
+  ).rejects.toBeInstanceOf(GiftSourceRequiredError);
+  expect((await repo.loadLibrary("local")).get(FOX.isbn).shelf).toBe(Shelf.WANTED);
+});
+
+test("blank giver leaves the saved book wanted", async () => {
+  const { repo, scan, move } = stack();
+  await scan.execute("local", FOX.isbn, Shelf.WANTED);
+  await expect(
+    move.execute("local", FOX.isbn, Shelf.OWNED, {
+      type: Acquisition.GIFTED,
+      giftedBy: "   ",
+    }),
+  ).rejects.toBeInstanceOf(GiftSourceRequiredError);
+  expect((await repo.loadLibrary("local")).get(FOX.isbn).shelf).toBe(Shelf.WANTED);
 });
 
 test("set reading status does not change owned vs wanted", async () => {
