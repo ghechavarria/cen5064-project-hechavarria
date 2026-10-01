@@ -60,6 +60,27 @@ test("gifted move requires a gifter name", () => {
   expect(book.acquiredAs).toBe(Acquisition.GIFTED);
 });
 
+test("empty gift name is rejected", () => {
+  const book = fox(Shelf.WANTED);
+  expect(() => book.markGifted("")).toThrow(GiftSourceRequiredError);
+});
+
+test("purchased move records acquisition and keeps reading status", () => {
+  const book = fox(Shelf.WANTED);
+  book.markPurchased();
+  book.moveTo(Shelf.OWNED);
+  expect(book.shelf).toBe(Shelf.OWNED);
+  expect(book.acquiredAs).toBe(Acquisition.PURCHASED);
+  expect(book.giftedBy).toBeNull();
+  expect(book.readingStatus).toBe(ReadingStatus.UNREAD);
+});
+
+test("owned book can move to wanted without acquisition", () => {
+  const book = fox(Shelf.OWNED);
+  book.moveTo(Shelf.WANTED);
+  expect(book.shelf).toBe(Shelf.WANTED);
+});
+
 test("series does not change shelf or reading status", () => {
   const book = fox();
   book.fillFacts({
