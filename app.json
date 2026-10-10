@@ -4,7 +4,7 @@
     "slug": "myhomelib",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "platforms": [
       "ios",
       "android",
@@ -29,7 +29,16 @@
           "cameraPermission": "MyHomeLib uses the camera to scan ISBN barcodes on books.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "MyHomeLib uses the camera to photograph your book's cover.",
+          "photosPermission": false
+        }
+      ],
+      "expo-font",
+      "expo-image"
     ]
   }
 }

@@ -14,6 +14,14 @@ npm-debug.*
 .DS_Store
 Thumbs.db
 
-# --- Local runtime ---
-instance/
-*.db
+# --- LaTeX build files (docs/design) ---
+*.aux
+*.log
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# --- Local secrets ---
+.env

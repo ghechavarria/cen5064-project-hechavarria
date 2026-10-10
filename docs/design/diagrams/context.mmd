@@ -1,0 +1,4 @@
+flowchart LR
+    user(["Bibliophile<br/>[person]<br/>catalogs a home library"]) -->|scans and manages books with| system["MyHomeLib<br/>[software system]<br/>Expo Go app on iOS, Android or web"]
+    system -->|looks up edition details<br/>HTTPS, no key| openLibrary["Open Library<br/>[external system]"]
+    system -->|looks up edition details and covers<br/>HTTPS, free key, optional| google["Google Books<br/>[external system]"]

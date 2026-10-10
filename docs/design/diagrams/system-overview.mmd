@@ -1,0 +1,15 @@
+flowchart LR
+    user(["Bibliophile<br/>[person]"]) -->|taps, scans| ui
+    subgraph MyHomeLib ["MyHomeLib (one Expo Go app, four tiers)"]
+        ui["Presentation<br/>[React Native screens +<br/>LibraryAppModel view model]"]
+        app["Application<br/>[Service use cases +<br/>Domain model]"]
+        db[("Book store<br/>[Data: SQLite on phone,<br/>JSON on web]")]
+        lookup["Book-source adapters<br/>[Data: Open Library + Google Books,<br/>merged and cached]"]
+        ui -->|calls use cases| app
+        app -->|reads / writes books<br/>through BookRepository| db
+        app -->|looks up an ISBN<br/>through IsbnLookup| lookup
+        lookup -->|caches metadata| db
+    end
+    lookup -->|HTTPS| openLibrary["Open Library<br/>[external]"]
+    lookup -->|HTTPS| google["Google Books<br/>[external, optional]"]
+    device["Phone hardware<br/>[camera, vibration]"] --- ui

@@ -1,17 +1,62 @@
 /**
  * Data: SqliteBookRepository implements the BookRepository port on device.
- * Service and Presentation must not import expo-sqlite; bootstrap.ts opens this adapter.
+ * Owns the schema and its upgrades; row ↔ Book conversion is BookRowMapper's job.
+ * Only CompositionRoot (bootstrap.ts) opens it; nothing else imports expo-sqlite.
  */
 import * as SQLite from "expo-sqlite";
-import { Acquisition, Book, PersonalLibrary, ReadingStatus } from "../domain";
+import { Acquisition, Book, BookFormat, PersonalLibrary, ReadingStatus, Shelf } from "../domain";
 import { BookMetadata, BookRepository } from "../service/ports";
-import { BookRow, migrateLegacyShelf, toBook, toRow } from "./bookRepository";
+import { BookRow, BookRowMapper } from "./bookRowMapper";
+
+// Mutable book columns, shared by UPDATE and INSERT so the list is written once.
+const BOOK_COLUMNS = [
+  "title",
+  "author",
+  "cover_url",
+  "publisher",
+  "shelf",
+  "copy_count",
+  "acquired_as",
+  "gifted_by",
+  "reading_status",
+  "series",
+  "description",
+  "published",
+  "page_count",
+  "subjects",
+  "format",
+] as const;
+
+// Columns added after the first release: [table, column, type + default].
+// migrate() adds any that an older database is missing.
+const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
+  ["books", "reading_status", "TEXT NOT NULL DEFAULT 'UNREAD'"],
+  ["books", "collection", "TEXT NOT NULL DEFAULT ''"],
+  ["books", "series", "TEXT NOT NULL DEFAULT ''"],
+  ["books", "description", "TEXT NOT NULL DEFAULT ''"],
+  ["books", "published", "TEXT NOT NULL DEFAULT ''"],
+  ["books", "page_count", "INTEGER NOT NULL DEFAULT 0"],
+  ["books", "subjects", "TEXT NOT NULL DEFAULT ''"],
+  ["isbn_cache", "series", "TEXT NOT NULL DEFAULT ''"],
+  ["isbn_cache", "description", "TEXT NOT NULL DEFAULT ''"],
+  ["isbn_cache", "published", "TEXT NOT NULL DEFAULT ''"],
+  ["isbn_cache", "page_count", "INTEGER NOT NULL DEFAULT 0"],
+  ["isbn_cache", "subjects", "TEXT NOT NULL DEFAULT ''"],
+  ["books", "format", "TEXT NOT NULL DEFAULT 'UNKNOWN'"],
+  ["isbn_cache", "format", "TEXT NOT NULL DEFAULT 'UNKNOWN'"],
+  ["isbn_cache", "cover_candidates", "TEXT NOT NULL DEFAULT '[]'"],
+];
+
+// Marker column for the current lookup format (edition-first + Google Books with
+// cover-by-ISBN). A database without it holds older lookups: they are dropped once.
+const CACHE_VERSION_COLUMN = "parser_v4";
 
 export class SqliteBookRepository implements BookRepository {
   private queue: Promise<void> = Promise.resolve();
 
   private constructor(private readonly db: SQLite.SQLiteDatabase) {}
 
+  // Factory: the constructor is private so a repository is never used before migrate().
   static async open(): Promise<SqliteBookRepository> {
     const db = await SQLite.openDatabaseAsync("myhomelib.db", { useNewConnection: true });
     const repo = new SqliteBookRepository(db);
@@ -19,6 +64,8 @@ export class SqliteBookRepository implements BookRepository {
     return repo;
   }
 
+  // expo-sqlite allows one statement at a time on a connection: every call
+  // waits its turn on this queue, and a failure does not block later calls.
   private enqueue<T>(work: () => Promise<T>): Promise<T> {
     const run = this.queue.then(work, work);
     this.queue = run.then(
@@ -63,22 +110,22 @@ export class SqliteBookRepository implements BookRepository {
         parser_v2 INTEGER NOT NULL DEFAULT 1
       );
     `);
-    const bookColumns = await this.db.getAllAsync<{ name: string }>("PRAGMA table_info(books)");
-    const cacheColumns = await this.db.getAllAsync<{ name: string }>("PRAGMA table_info(isbn_cache)");
-    await this.addColumn(bookColumns, "reading_status", `ALTER TABLE books ADD COLUMN reading_status TEXT NOT NULL DEFAULT 'UNREAD';`);
-    await this.addColumn(bookColumns, "collection", `ALTER TABLE books ADD COLUMN collection TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(bookColumns, "series", `ALTER TABLE books ADD COLUMN series TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(bookColumns, "description", `ALTER TABLE books ADD COLUMN description TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(bookColumns, "published", `ALTER TABLE books ADD COLUMN published TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(bookColumns, "page_count", `ALTER TABLE books ADD COLUMN page_count INTEGER NOT NULL DEFAULT 0;`);
-    await this.addColumn(bookColumns, "subjects", `ALTER TABLE books ADD COLUMN subjects TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(cacheColumns, "series", `ALTER TABLE isbn_cache ADD COLUMN series TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(cacheColumns, "description", `ALTER TABLE isbn_cache ADD COLUMN description TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(cacheColumns, "published", `ALTER TABLE isbn_cache ADD COLUMN published TEXT NOT NULL DEFAULT '';`);
-    await this.addColumn(cacheColumns, "page_count", `ALTER TABLE isbn_cache ADD COLUMN page_count INTEGER NOT NULL DEFAULT 0;`);
-    await this.addColumn(cacheColumns, "subjects", `ALTER TABLE isbn_cache ADD COLUMN subjects TEXT NOT NULL DEFAULT '';`);
-    if (!cacheColumns.some((column) => column.name === "parser_v2")) {
-      await this.db.execAsync(`ALTER TABLE isbn_cache ADD COLUMN parser_v2 INTEGER NOT NULL DEFAULT 1;`);
+    // Read each table's existing columns once, then add whatever is missing.
+    const existing: Record<string, string[]> = {};
+    for (const table of ["books", "isbn_cache"]) {
+      existing[table] = (
+        await this.db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)
+      ).map((column) => column.name);
+    }
+    for (const [table, column, definition] of ADDED_COLUMNS) {
+      if (!existing[table].includes(column)) {
+        await this.db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+      }
+    }
+    if (!existing.isbn_cache.includes(CACHE_VERSION_COLUMN)) {
+      await this.db.execAsync(
+        `ALTER TABLE isbn_cache ADD COLUMN ${CACHE_VERSION_COLUMN} INTEGER NOT NULL DEFAULT 1;`,
+      );
       await this.db.execAsync(`DELETE FROM isbn_cache;`);
     }
     await this.db.execAsync(
@@ -93,79 +140,36 @@ export class SqliteBookRepository implements BookRepository {
     }
   }
 
-  private async addColumn(
-    columns: { name: string }[],
-    name: string,
-    sql: string,
-  ): Promise<void> {
-    if (!columns.some((column) => column.name === name)) {
-      await this.db.execAsync(sql);
-    }
-  }
-
   async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
     return this.enqueue(async () => {
       const rows = await this.db.getAllAsync<Record<string, unknown>>(
         "SELECT * FROM books WHERE owner_id = ?",
         [ownerId],
       );
-      return new PersonalLibrary(ownerId, rows.map((row) => toBook(this.mapRow(row))));
+      return new PersonalLibrary(rows.map((row) => BookRowMapper.toBook(this.mapRow(row))));
     });
   }
 
   async save(ownerId: string, book: Book): Promise<Book> {
     return this.enqueue(async () => {
-      const existing = await this.db.getFirstAsync<{ id: number }>(
-        "SELECT id FROM books WHERE isbn = ?",
+      // Same ISBN already stored → UPDATE that row; otherwise INSERT a new one.
+      const existing = await this.db.getFirstAsync<{ isbn: string }>(
+        "SELECT isbn FROM books WHERE isbn = ?",
         [book.isbn],
       );
+      const values = this.bookValues(book);
       if (existing) {
         await this.db.runAsync(
-          `UPDATE books SET title=?, author=?, cover_url=?, publisher=?, shelf=?, copy_count=?, acquired_as=?, gifted_by=?, reading_status=?, series=?, description=?, published=?, page_count=?, subjects=? WHERE isbn=?`,
-          [
-            book.title,
-            book.author,
-            book.coverUrl,
-            book.publisher,
-            book.shelf,
-            book.copyCount,
-            book.acquiredAs ?? "",
-            book.giftedBy ?? "",
-            book.readingStatus,
-            book.series,
-            book.description,
-            book.published,
-            book.pageCount,
-            book.subjects,
-            book.isbn,
-          ],
+          `UPDATE books SET ${BOOK_COLUMNS.map((column) => `${column}=?`).join(", ")} WHERE isbn=?`,
+          [...values, book.isbn],
         );
-        book.setId(existing.id);
         return book;
       }
-      const result = await this.db.runAsync(
-        `INSERT INTO books (owner_id, isbn, title, author, cover_url, publisher, shelf, copy_count, acquired_as, gifted_by, reading_status, series, description, published, page_count, subjects)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          ownerId,
-          book.isbn,
-          book.title,
-          book.author,
-          book.coverUrl,
-          book.publisher,
-          book.shelf,
-          book.copyCount,
-          book.acquiredAs ?? "",
-          book.giftedBy ?? "",
-          book.readingStatus,
-          book.series,
-          book.description,
-          book.published,
-          book.pageCount,
-          book.subjects,
-        ],
+      await this.db.runAsync(
+        `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")})
+         VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")})`,
+        [ownerId, book.isbn, ...values],
       );
-      book.setId(Number(result.lastInsertRowId));
       return book;
     });
   }
@@ -180,46 +184,43 @@ export class SqliteBookRepository implements BookRepository {
 
   async cachedIsbn(isbn: string): Promise<BookMetadata | null> {
     return this.enqueue(async () => {
-      const row = await this.db.getFirstAsync<{
-        isbn: string;
-        title: string;
-        author: string;
-        cover_url: string;
-        publisher: string;
-        series: string | null;
-        description: string | null;
-        published: string | null;
-        page_count: number | null;
-        subjects: string | null;
-      }>("SELECT * FROM isbn_cache WHERE isbn = ?", [isbn]);
+      const row = await this.db.getFirstAsync<Record<string, unknown>>(
+        "SELECT * FROM isbn_cache WHERE isbn = ?",
+        [isbn],
+      );
       if (!row) {
         return null;
       }
-      return {
-        isbn: row.isbn,
-        title: row.title,
-        author: row.author,
-        coverUrl: row.cover_url,
-        publisher: row.publisher,
-        series: row.series ?? "",
-        description: row.description ?? "",
-        published: row.published ?? "",
-        pageCount: row.page_count ?? 0,
-        subjects: row.subjects ?? "",
-      };
+      return BookRowMapper.metadataWithDefaults({
+        isbn: String(row.isbn),
+        title: String(row.title),
+        author: String(row.author),
+        coverUrl: String(row.cover_url),
+        // Stored as a JSON array of URLs.
+        coverCandidates: JSON.parse(String(row.cover_candidates ?? "[]")) as string[],
+        publisher: String(row.publisher),
+        format: (row.format as BookFormat) || BookFormat.UNKNOWN,
+        series: String(row.series ?? ""),
+        description: String(row.description ?? ""),
+        published: String(row.published ?? ""),
+        pageCount: Number(row.page_count ?? 0),
+        subjects: String(row.subjects ?? ""),
+      });
     });
   }
 
   async cacheIsbn(metadata: BookMetadata): Promise<void> {
     return this.enqueue(async () => {
       await this.db.runAsync(
-        `INSERT OR REPLACE INTO isbn_cache (isbn, title, author, cover_url, publisher, series, description, published, page_count, subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO isbn_cache (isbn, title, author, cover_url, cover_candidates, publisher, format, series, description, published, page_count, subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           metadata.isbn,
           metadata.title,
           metadata.author,
           metadata.coverUrl,
+          JSON.stringify(metadata.coverCandidates),
           metadata.publisher,
+          metadata.format,
           metadata.series,
           metadata.description,
           metadata.published,
@@ -230,28 +231,48 @@ export class SqliteBookRepository implements BookRepository {
     });
   }
 
+  // Same order as BOOK_COLUMNS.
+  private bookValues(book: Book): (string | number)[] {
+    return [
+      book.title,
+      book.author,
+      book.coverUrl,
+      book.publisher,
+      book.shelf,
+      book.copyCount,
+      book.acquiredAs ?? "",
+      book.giftedBy ?? "",
+      book.readingStatus,
+      book.series,
+      book.description,
+      book.published,
+      book.pageCount,
+      book.subjects,
+      book.format,
+    ];
+  }
+
+  // snake_case columns → BookRow. BookRowMapper fills whatever an older schema lacks.
   private mapRow(row: Record<string, unknown>): BookRow {
-    return toRow(
-      String(row.owner_id),
-      new Book(
-        String(row.isbn),
-        String(row.title),
-        String(row.author),
-        String(row.cover_url),
-        String(row.publisher),
-        migrateLegacyShelf(String(row.shelf)),
-        Number(row.copy_count),
-        (row.acquired_as as Acquisition | null) || null,
-        (row.gifted_by as string | null) || null,
-        (row.reading_status as ReadingStatus) ?? ReadingStatus.UNREAD,
-        String(row.series || row.collection || ""),
-        String(row.description ?? ""),
-        String(row.published ?? ""),
-        Number(row.page_count ?? 0),
-        String(row.subjects ?? ""),
-        Number(row.id),
-      ),
-      Number(row.id),
-    );
+    return BookRowMapper.withDefaults({
+      ownerId: String(row.owner_id),
+      isbn: String(row.isbn),
+      title: String(row.title),
+      author: String(row.author),
+      coverUrl: String(row.cover_url),
+      publisher: String(row.publisher),
+      shelf: row.shelf as Shelf,
+      copyCount: Number(row.copy_count),
+      acquiredAs: row.acquired_as as Acquisition | null,
+      giftedBy: row.gifted_by as string | null,
+      readingStatus: row.reading_status as ReadingStatus | undefined,
+      series: row.series as string | undefined,
+      collection: row.collection as string | undefined,
+      description: row.description as string | undefined,
+      published: row.published as string | undefined,
+      pageCount: row.page_count as number | undefined,
+      subjects: row.subjects as string | undefined,
+      format: row.format as BookFormat | undefined,
+    });
   }
 }

@@ -1,0 +1,26 @@
+classDiagram
+    direction LR
+    class IsbnLookup {
+        <<interface>>
+        +byIsbn(isbn) BookMetadata
+    }
+    class CachingIsbnLookup {
+        -inner: IsbnLookup
+        -cache: IsbnCache
+    }
+    class MergedIsbnLookup {
+        -sources: IsbnLookup[]
+    }
+    class Http {
+        +getJson(url)$ Json
+        +contentType(url)$ String
+    }
+    CachingIsbnLookup ..|> IsbnLookup
+    MergedIsbnLookup ..|> IsbnLookup
+    OpenLibraryIsbnLookup ..|> IsbnLookup
+    GoogleBooksIsbnLookup ..|> IsbnLookup
+    CachingIsbnLookup --> MergedIsbnLookup : wraps
+    MergedIsbnLookup --> GoogleBooksIsbnLookup : asks
+    MergedIsbnLookup --> OpenLibraryIsbnLookup : asks
+    OpenLibraryIsbnLookup --> Http
+    GoogleBooksIsbnLookup --> Http

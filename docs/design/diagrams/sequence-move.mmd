@@ -1,0 +1,29 @@
+sequenceDiagram
+    actor U as Bibliophile
+    participant VM as LibraryAppModel
+    participant C as LibraryController
+    participant S as MoveBookToShelfUseCase
+    participant B as Book (Domain)
+    participant R as BookRepository
+    U->>VM: "To Owned" on a Wanted book
+    VM-->>U: ask "Purchased or gifted?"
+    U->>VM: chooseGifted(), then the giver's name
+    VM->>C: move(isbn, OWNED, readingStatus, new Gift(giver))
+    C->>S: execute(ownerId, isbn, OWNED, gift)
+    S->>R: loadLibrary(ownerId)
+    R-->>S: PersonalLibrary
+    S->>B: acquire(gift)
+    S->>B: moveTo(OWNED)
+    Note right of B: rule: an Owned book needs a complete<br/>Purchase or Gift (a Gift needs a giver)
+    alt acquisition missing or incomplete
+        B-->>S: NotAcquiredError / GiftSourceRequiredError
+        S-->>VM: error (nothing saved)
+        VM-->>U: explain what is missing
+    else rule satisfied
+        S->>R: save(ownerId, book)
+        R-->>S: Book
+        S-->>C: Book
+        C->>C: setReading(isbn, readingStatus)
+        C-->>VM: Book
+        VM-->>U: "Moved to Owned"
+    end

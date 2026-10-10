@@ -1,28 +1,25 @@
 /**
- * Service: FillMissingFactsUseCase — backfill empty series from Open Library.
- * Must not import React, SQLite, or fetch.
+ * Service: FillMissingFactsUseCase — at start-up, look up books that still lack
+ * a series or a format, and save any that the sources can now fill in.
  */
-import { BookRepository, IsbnLookup } from "./ports";
+import { Book, BookFormat } from "../domain";
+import { LibraryLookupUseCase } from "./libraryLookupUseCase";
 
-export class FillMissingFactsUseCase {
-  constructor(
-    private readonly repository: BookRepository,
-    private readonly isbnLookup: IsbnLookup,
-  ) {}
-
+export class FillMissingFactsUseCase extends LibraryLookupUseCase {
   async execute(ownerId: string): Promise<void> {
-    for (const book of (await this.repository.loadLibrary(ownerId)).books) {
-      if (book.series.trim()) {
+    for (const book of (await this.library(ownerId)).books) {
+      if (FillMissingFactsUseCase.isComplete(book)) {
         continue;
       }
-      try {
-        book.fillFacts(await this.isbnLookup.byIsbn(book.isbn));
-      } catch {
-        continue;
-      }
-      if (book.series.trim()) {
+      const before = [book.series, book.format].join("|");
+      await this.tryFillFacts(book);
+      if ([book.series, book.format].join("|") !== before) {
         await this.repository.save(ownerId, book);
       }
     }
+  }
+
+  private static isComplete(book: Book): boolean {
+    return book.series.trim() !== "" && book.format !== BookFormat.UNKNOWN;
   }
 }

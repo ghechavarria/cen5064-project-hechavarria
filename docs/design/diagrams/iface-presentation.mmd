@@ -1,0 +1,41 @@
+classDiagram
+    direction LR
+    class Observable~State~ {
+        <<abstract>>
+        +getState() State
+        +subscribe(listener) unsubscribe
+        #setState(patch)
+    }
+    class LibraryAppModel {
+        +heading / hint / page / bookList
+        +start()
+        +selectTab(tab)
+        +scan(isbn)
+        +selectCover(url)
+        +confirmScan()
+        +chooseScanShelf(shelf)
+        +choosePurchased() / chooseGifted()
+        +moveSelected(shelf)
+        +toggleReading()
+        +changeCover()
+        +askDelete() / confirmDelete()
+    }
+    class LibraryController {
+        +view() LibraryView
+        +lookup(code) LookupResult
+        +scan(...) Book
+        +move(...) Book
+        +setReading(isbn, status) Book
+        +changeCover(isbn, url) Book
+        +remove(isbn)
+        +fillMissingFacts()
+    }
+    class CoverCamera {
+        <<interface>>
+        +takePhoto() String
+    }
+    LibraryAppModel --|> Observable~State~
+    LibraryAppModel *-- LibraryController
+    LibraryAppModel --> CoverCamera
+    ExpoCoverCamera ..|> CoverCamera
+    LibraryController --> UseCases

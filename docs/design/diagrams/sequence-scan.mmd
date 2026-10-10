@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor U as Bibliophile
+    participant UI as Expo screens
+    participant S as Service
+    participant L as IsbnLookup
+    participant R as BookRepository
+    U->>UI: scan ISBN barcode
+    UI->>S: LookupIsbnUseCase.execute(isbn)
+    S->>L: byIsbn(isbn)
+    Note right of L: Google Books + Open Library, merged, cached
+    L-->>S: BookMetadata (cover candidates, binding)
+    S-->>UI: title, author, covers
+    U->>UI: pick matching cover (or photo), binding if unknown, shelf, read status
+    UI->>S: ScanBookUseCase.execute(ownerId, isbn, shelf, readingStatus, acquisition, choices)
+    S->>R: loadLibrary(ownerId)
+    R-->>S: PersonalLibrary
+    alt ISBN already in library
+        S->>S: library.get(isbn).addCopy()
+        Note right of S: domain rule: duplicate ISBN is a copy, not a second row
+    else new ISBN
+        S->>L: byIsbn(isbn)
+        L-->>S: BookMetadata
+        S->>S: library.addBook(new Book)
+    end
+    S->>R: save(ownerId, book)
+    R-->>S: Book
+    S-->>UI: Book
+    UI-->>U: show on TBR/Owned or Wanted

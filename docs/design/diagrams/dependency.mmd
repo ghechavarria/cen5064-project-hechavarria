@@ -1,0 +1,17 @@
+flowchart LR
+    App["App.tsx"] --> Root["CompositionRoot<br/>(bootstrap.ts)"]
+    App --> Model["LibraryAppModel"]
+    Model --> Controller["LibraryController"]
+    Model --> Camera["CoverCamera<br/>«interface»"]
+    ExpoCam["ExpoCoverCamera"] -. implements .-> Camera
+    Controller --> UC["UseCases"]
+    UC --> Domain["Domain<br/>Book · PersonalLibrary ·<br/>AcquisitionRecord"]
+    UC --> Ports["Ports «interfaces»<br/>BookRepository · IsbnLookup"]
+    Repos["SqliteBookRepository<br/>JsonBookRepository"] -. implements .-> Ports
+    Lookups["CachingIsbnLookup → MergedIsbnLookup →<br/>OpenLibrary + GoogleBooks"] -. implements .-> Ports
+    Root --> UC
+    Root --> Repos
+    Root --> Lookups
+    Lookups --> Http["Http"]
+    Repos --> Mapper["BookRowMapper"]
+    Mapper --> Domain
