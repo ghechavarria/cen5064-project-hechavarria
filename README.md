@@ -10,6 +10,8 @@
 MyHomeLib is a cross-platform Expo Go app (React Native) for bibliophiles who catalog a personal library. It runs on iPhone and Android through the free Expo Go client — not an App Store / Play binary, and not an Xcode or Android Studio project — so a partner can clone the repo and run it without a Mac. Conference fallback: Expo web in a browser (webcam ISBN scan). Core features: (1) ISBN camera scan (typed ISBN fallback) that looks up metadata from Open Library (the only external integration; no API key), including series, description, year, pages, and subjects, (2) Owned vs Wanted, with TBR as the Owned unread/read list and an Owned catalog (A–Z / author / series), and (3) Domain rules: scanning an ISBN already in the library increments a copy count instead of adding a second row; a Wanted book cannot move to Owned unless it is marked purchased or gifted (gifted requires the giver’s name). There is no bookstore web scraping.
 ```
 
+**Scope changes since approval:** the bookstore price check was removed ([ADR-004](docs/adr/adr-004.md)), and Google Books was added as an optional second book source, through its official API, so scans match the exact edition ([ADR-006](docs/adr/adr-006.md)). The app still runs with Open Library alone.
+
 ## How to run
 
 Requires Node.js LTS. No Python, no Xcode, no Android Studio, no paid developer account.
@@ -22,7 +24,7 @@ npm start
 Optional, for exact covers: copy `.env.example` to `.env` and add a free Google Books API key (Google Cloud console → enable "Books API" → create an API key). Without it the app uses Open Library only ([ADR-006](docs/adr/adr-006.md)).
 
 - Phone: install free **Expo Go**, then scan the QR code (same Wi-Fi, or use the tunnel option Expo prints). Open **Scan** and allow the camera; point it at the ISBN barcode on the book.
-
+- Browser: press `w` in the terminal after `npm start` (or run `npm run web`) and the app opens at http://localhost:8081. Scan uses the webcam; with no camera, type the ISBN (for example `9780743273565`).
 
 Tests: `npm test` (88 tests: every tier, every user flow through the view model, and the architecture rules).
 
