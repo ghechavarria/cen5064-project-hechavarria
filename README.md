@@ -1,5 +1,7 @@
 # MyHomeLib
 
+[![CI](https://github.com/ghechavarria/cen5064-project-hechavarria/actions/workflows/ci.yml/badge.svg)](https://github.com/ghechavarria/cen5064-project-hechavarria/actions/workflows/ci.yml)
+
 **Student:** Grace Hechavarria · **Course:** CEN 5064 Software Design, Fall 2026 · **Partner:** [@YousufTheSWE]
 
 ## Project (approval paragraph)
@@ -28,7 +30,7 @@ Tests: `npm test` (88 tests: every tier, every user flow through the view model,
 
 | Document | What it's for |
 |---|---|
-| [`docs/design/main.pdf`](docs/design/main.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. LaTeX source and diagram sources sit beside it. |
+| [`docs/design/main.pdf`](docs/design/main.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. A Word copy ([`MyHomeLib-SDD-v1.0.docx`](docs/design/MyHomeLib-SDD-v1.0.docx)), the LaTeX source, and the diagram sources sit beside it. |
 | [`docs/code-review.md`](docs/code-review.md) | Study guide: what calls what in plain words, where each class lives and why, and answers to "why this architecture, why Expo Go, why TypeScript". |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–009): one page per decision, with its context and consequences. |
 | This README | How to run, the tier table, and the C4 and UML diagrams. |
@@ -312,14 +314,14 @@ Decisions live in [`docs/adr/`](docs/adr/). Plain-English walkthrough and the "w
 | [008](docs/adr/adr-008.md) | Design system: theme tokens, one stylesheet per component, shared UI building blocks | accepted |
 | [009](docs/adr/adr-009.md) | Ports and adapters between Service and Data | accepted |
 
-The full Software Design Document (LaTeX source and PDF) is in [`docs/design/`](docs/design/).
+The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`docs/design/`](docs/design/).
 
 ## Weekly log (optional but recommended)
 
 - Week 1 (Aug 24): repo created, three ideas drafted
 - Week 2 (Aug 31): Tier Breakdown  
-- Week 3 (Sep 07): C4 Models / Architecture
-- Week 4 ( Break ) ...
+- Week 3 (Sep 07): C4 Models / Architecture (drafted this week; committed Sep 14)
+- Week 4 (Sep 14): Break week. Only the week-3 C4 and class diagrams were committed, on Sep 14.
 - Week 5 (Sep 21): Initial Architecture/Logic and Design Creation #3 Issue created. Changes pushed to a PR for review
 - Week 6 (Sep 28): Enforce acquisition requirements when moving Wanted books to Owned #5 issue created, fixed and tested
-- Week 7 (Oct 05): Exact-edition lookup (Google Books + Open Library merged, cover picker, own cover photo, binding question); OOP refactor (classes, MVVM, stylesheet imports); UI design system; Software Design Document v1.0
+- Week 7 (Oct 05): Exact-edition lookup (Google Books + Open Library merged, cover picker, own cover photo, binding question); OOP refactor (classes, MVVM, stylesheet imports); UI design system; Software Design Document v1.0; CI added. Honest note: this week's work was built locally and pushed as one large PR (#8, closes #7) instead of in daily commits. From week 8 on, each issue gets its own branch and smaller commits.

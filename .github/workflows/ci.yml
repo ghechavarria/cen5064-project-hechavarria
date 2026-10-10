@@ -1,0 +1,28 @@
+# CI: on every push and pull request, install exactly what package-lock.json pins,
+# type-check the whole project, and run the test suite (including the
+# architecture rules in tests/architecture.test.ts).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
+
+      - name: Tests
+        run: npm test

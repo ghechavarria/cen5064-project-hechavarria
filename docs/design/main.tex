@@ -137,7 +137,17 @@ October 10, 2026
 
 \subsection{Purpose}
 
-This Software Design Document (SDD) describes the architecture and system design of MyHomeLib, a cross-platform mobile application for cataloging a personal home library. It is intended for the course instructor, the peer review partner, and any software engineer who will maintain or extend the system. It explains how the application is divided into tiers and components, how those components communicate, why the main design decisions were made, and how each requirement was verified.
+\textbf{What:} MyHomeLib is a cross-platform mobile app (Expo Go on iPhone and Android, with a web fallback) for cataloging a personal home library by scanning each book's ISBN. \textbf{For whom:} a bibliophile who owns a growing collection of physical books and wants to know exactly what is on their shelves, what they still want, and what they have not read yet.
+
+\textbf{Core use cases:}
+\begin{enumerate}[label=\textbf{UC\arabic*}, leftmargin=3.2em]
+    \item \textbf{Scan a book:} read the ISBN with the camera (or type it), see the exact edition's details, and pick the cover that matches the copy in hand.
+    \item \textbf{Shelve it:} file it as Owned or Wanted. An Owned book must be recorded as purchased or gifted (a gift needs the giver's name), and a duplicate ISBN adds a copy instead of a second entry.
+    \item \textbf{Browse the library:} To Be Read (Owned books, unread or read), the Owned catalog grouped A--Z, by author, or by series, and the Wanted list.
+    \item \textbf{Manage a book:} mark it read or unread, move it between shelves, replace its cover with a photo, or delete it.
+\end{enumerate}
+
+\textbf{Within course limits:} one data store (SQLite on the device), a four-tier architecture, official book APIs only (no scraping), and an app the review partner can run without a Mac or paid accounts. This document describes that design for the course instructor, the peer review partner, and any engineer who will maintain the system: how it is divided into tiers and components, how they communicate, why the main decisions were made, and how each requirement was verified.
 
 \subsection{Customer, Setting, Sponsoring Organization, and Constraints}
 
@@ -182,7 +192,7 @@ Unlike reading-tracker apps, MyHomeLib records the physical copy: which edition 
 
 \subsection{Scope}
 
-This document covers the midterm version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and six major components: the Presentation view model, the Service use cases, the Domain model, the book repositories, the book-source adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. Accounts, cloud synchronization, price tracking, and bookstore integrations are out of scope for this version.
+This document covers the midterm version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and six major components: the Presentation view model, the Service use cases, the Domain model, the book repositories, the book-source adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. Out of scope: user accounts, cloud synchronization, sharing between users, price tracking, and bookstore integrations. Two scope changes are acknowledged against the approved proposal: the bookstore price check was removed (ADR-004), and Google Books was added as an optional second metadata source so that scans match the exact edition (ADR-006); it uses the official API, needs no account, and the app works without it.
 
 \subsection{Definitions, Acronyms and Abbreviations}
 
@@ -1100,6 +1110,44 @@ Grace Hechavarria & Added the Google Books adapter, merged and cached lookups, t
 \end{tabular}
 \end{minipage}
 
+\subsection{Plan for the Second Half}
+
+The remaining work is tracked as GitHub issues, one per sprint, each in the title / why / ``done when'' form, and shown on the project board. The midterm check-in action item will be added as its own issue as soon as it is received.
+
+\medskip
+\noindent
+\begin{tabular}{|L{2.6cm}|L{4.4cm}|L{7.6cm}|}
+\hline
+\textbf{Weeks} & \textbf{GitHub issue} & \textbf{Done when} \\
+\hline
+8--9 (10/12 -- 10/25) & Address midterm review findings & Every finding from the midterm peer review and the check-in action item is fixed or answered in the issue, and CI is green. \\
+\hline
+10--11 (10/26 -- 11/08) & Verify every flow on a physical phone & Scan, cover photo, gift, move, read toggle, and delete are each walked through in Expo Go on an iPhone and an Android phone, with defects fixed and the results recorded. \\
+\hline
+12--13 (11/09 -- 11/22) & Final review, demo, and SDD v2.0 & The final peer review is addressed, the demo runs from a clean clone, and this document is updated to its final version. \\
+\hline
+\end{tabular}
+
+\medskip
+\noindent
+\begin{tabular}{|L{4.6cm}|L{10cm}|}
+\hline
+\textbf{Risk} & \textbf{Mitigation} \\
+\hline
+A book source is slow or down (Open Library took about 20 seconds per request during testing) & Every lookup is cached on the device after the first time; Google Books answers when Open Library does not; a typed ISBN and a clear ``No book found'' message cover the rest; the demo uses books already cached. \\
+\hline
+The camera, haptics, and SQLite have only been exercised in the web build so far & Weeks 10--11 are reserved for testing on physical iPhone and Android phones in Expo Go, before the final review. \\
+\hline
+An Expo or dependency update breaks the app before the demo & Versions are pinned in \texttt{package-lock.json}, CI installs with \texttt{npm ci} on every push, and no SDK upgrade is taken until after the final review. \\
+\hline
+The Google Books key is missing or over quota & The key is optional: without it the app uses Open Library only (ADR-006), and the key is restricted to the Books API. \\
+\hline
+Review findings take longer than planned & Weeks 8--9 hold no new features, only findings, ordered by how much they affect the grade and the user. \\
+\hline
+One developer, limited time & Work is split into small issues with weekly commits, and CI and the 88 automated tests catch regressions immediately. \\
+\hline
+\end{tabular}
+
 %==========================================================================
 \section{Design}
 
@@ -1172,7 +1220,7 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \FloatBarrier
 
-Figures~\ref{fig:class_domain}, \ref{fig:class_service}, and~\ref{fig:class_presentation} show the classes. The object-oriented techniques used, and where:
+Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. Figures~\ref{fig:class_service} and~\ref{fig:class_presentation} are supplementary: they show how the other tiers are built, for readers tracing a call through the code. The object-oriented techniques used, and where:
 
 \begin{longtable}{|L{3.6cm}|L{11cm}|}
 \hline
