@@ -1,157 +1,52 @@
 /**
- * Data: Memory/JSON BookRepository adapters plus row mapping.
- * Implements the BookRepository port; no React.
+ * Data: MemoryBookRepository (tests, and the store behind JSON) and
+ * JsonBookRepository (Expo web: browser localStorage). Both implement the
+ * BookRepository port; row ↔ Book conversion is BookRowMapper's job.
  */
-import { Acquisition, Book, PersonalLibrary, ReadingStatus, Shelf } from "../domain";
+import { Book, PersonalLibrary } from "../domain";
 import { BookMetadata, BookRepository } from "../service/ports";
+import { BookRow, BookRowMapper } from "./bookRowMapper";
 
-export type BookRow = {
-  ownerId: string;
-  isbn: string;
-  title: string;
-  author: string;
-  coverUrl: string;
-  publisher: string;
-  shelf: Shelf;
-  copyCount: number;
-  acquiredAs: Acquisition | null;
-  giftedBy: string | null;
-  readingStatus: ReadingStatus;
-  series: string;
-  description: string;
-  published: string;
-  pageCount: number;
-  subjects: string;
-  id: number;
-};
+/** Everything the memory store holds; JSON saves exactly this. */
+type Snapshot = { books: BookRow[]; isbnCache: Record<string, BookMetadata> };
 
-export function migrateLegacyShelf(shelf: string): Shelf {
-  return shelf === "TBR" ? Shelf.OWNED : (shelf as Shelf);
-}
-
-function withFacts(row: Partial<BookRow> & BookRow): BookRow {
-  return {
-    ...row,
-    series: row.series || (row as BookRow & { collection?: string }).collection || "",
-    description: row.description ?? "",
-    published: row.published ?? "",
-    pageCount: row.pageCount ?? 0,
-    subjects: row.subjects ?? "",
-  };
-}
-
-export function toBook(row: BookRow): Book {
-  return new Book(
-    row.isbn,
-    row.title,
-    row.author,
-    row.coverUrl,
-    row.publisher,
-    migrateLegacyShelf(String(row.shelf)),
-    row.copyCount,
-    row.acquiredAs,
-    row.giftedBy,
-    row.readingStatus ?? ReadingStatus.UNREAD,
-    row.series ?? "",
-    row.description ?? "",
-    row.published ?? "",
-    row.pageCount ?? 0,
-    row.subjects ?? "",
-    row.id,
-  );
-}
-
-export function toRow(ownerId: string, book: Book, id: number): BookRow {
-  return {
-    ownerId,
-    isbn: book.isbn,
-    title: book.title,
-    author: book.author,
-    coverUrl: book.coverUrl,
-    publisher: book.publisher,
-    shelf: book.shelf,
-    copyCount: book.copyCount,
-    acquiredAs: book.acquiredAs,
-    giftedBy: book.giftedBy,
-    readingStatus: book.readingStatus,
-    series: book.series,
-    description: book.description,
-    published: book.published,
-    pageCount: book.pageCount,
-    subjects: book.subjects,
-    id,
-  };
-}
-
-function emptyMetadata(row: Partial<BookMetadata> & Pick<BookMetadata, "isbn" | "title" | "author" | "coverUrl" | "publisher">): BookMetadata {
-  return {
-    isbn: row.isbn,
-    title: row.title,
-    author: row.author,
-    coverUrl: row.coverUrl,
-    publisher: row.publisher,
-    series: row.series ?? "",
-    description: row.description ?? "",
-    published: row.published ?? "",
-    pageCount: row.pageCount ?? 0,
-    subjects: row.subjects ?? "",
-  };
-}
-
+/** In-memory store: rows in an array, ISBN cache in a map. */
 export class MemoryBookRepository implements BookRepository {
   private books: BookRow[] = [];
   private isbnCache: Record<string, BookMetadata> = {};
-  private nextId = 1;
 
-  dump(): {
-    books: BookRow[];
-    isbnCache: Record<string, BookMetadata>;
-    nextId: number;
-  } {
-    return {
-      books: this.books,
-      isbnCache: this.isbnCache,
-      nextId: this.nextId,
-    };
+  dump(): Snapshot {
+    return { books: this.books, isbnCache: this.isbnCache };
   }
 
-  restore(snapshot: {
-    books: BookRow[];
-    isbnCache: Record<string, BookMetadata>;
-    nextId: number;
-  }): void {
-    this.books = snapshot.books.map((row) =>
-      withFacts({
-        ...row,
-        shelf: migrateLegacyShelf(String(row.shelf)),
-        readingStatus: row.readingStatus ?? ReadingStatus.UNREAD,
-      }),
-    );
+  // Rows and cache entries saved by older builds get today's defaults.
+  restore(snapshot: Snapshot): void {
+    this.books = snapshot.books.map((row) => BookRowMapper.withDefaults(row));
     this.isbnCache = Object.fromEntries(
-      Object.entries(snapshot.isbnCache).map(([isbn, metadata]) => [isbn, emptyMetadata(metadata)]),
+      Object.entries(snapshot.isbnCache).map(([isbn, metadata]) => [
+        isbn,
+        BookRowMapper.metadataWithDefaults(metadata),
+      ]),
     );
-    this.nextId = snapshot.nextId;
   }
 
   async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
     return new PersonalLibrary(
-      ownerId,
-      this.books.filter((row) => row.ownerId === ownerId).map(toBook),
+      this.books.filter((row) => row.ownerId === ownerId).map(BookRowMapper.toBook),
     );
   }
 
+  // Insert, or replace the row with the same owner and ISBN.
   async save(ownerId: string, book: Book): Promise<Book> {
+    const row = BookRowMapper.toRow(ownerId, book);
     const existing = this.books.findIndex(
-      (row) => row.ownerId === ownerId && row.isbn === book.isbn,
+      (stored) => stored.ownerId === ownerId && stored.isbn === book.isbn,
     );
     if (existing >= 0) {
-      this.books[existing] = toRow(ownerId, book, this.books[existing].id);
-      book.setId(this.books[existing].id);
-      return book;
+      this.books[existing] = row;
+    } else {
+      this.books.push(row);
     }
-    this.books.push(toRow(ownerId, book, this.nextId));
-    book.setId(this.nextId);
-    this.nextId += 1;
     return book;
   }
 
@@ -168,27 +63,58 @@ export class MemoryBookRepository implements BookRepository {
   }
 }
 
-const STORAGE_KEY = "myhomelib.library.v1";
+/** The part of browser localStorage this repository needs. */
+type KeyValueStorage = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+};
 
+const STORAGE_KEY = "myhomelib.library.v1";
+// Bumped when the lookup sources change (4: edition-first + Google Books with
+// cover-by-ISBN); cached lookups from an older version are dropped and fetched again.
+const CACHE_PARSER_VERSION = 4;
+
+/**
+ * localStorage store. Composition: it wraps a MemoryBookRepository, loads it
+ * once from storage (hydrate) and writes it back after every change (persist).
+ */
 export class JsonBookRepository implements BookRepository {
   private readonly memory = new MemoryBookRepository();
   private loaded = false;
 
-  constructor(
-    private readonly storage: {
-      getItem(key: string): string | null;
-      setItem(key: string, value: string): void;
-    } | null,
-  ) {}
+  constructor(private readonly storage: KeyValueStorage) {}
 
-  private persist(): void {
-    if (!this.storage) {
-      return;
-    }
-    this.storage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ ...this.memory.dump(), cacheParser: 2 }),
-    );
+  loadLibrary(ownerId: string): Promise<PersonalLibrary> {
+    return this.read(() => this.memory.loadLibrary(ownerId));
+  }
+
+  save(ownerId: string, book: Book): Promise<Book> {
+    return this.write(() => this.memory.save(ownerId, book));
+  }
+
+  delete(ownerId: string, isbn: string): Promise<void> {
+    return this.write(() => this.memory.delete(ownerId, isbn));
+  }
+
+  cachedIsbn(isbn: string): Promise<BookMetadata | null> {
+    return this.read(() => this.memory.cachedIsbn(isbn));
+  }
+
+  cacheIsbn(metadata: BookMetadata): Promise<void> {
+    return this.write(() => this.memory.cacheIsbn(metadata));
+  }
+
+  // Every read first makes sure storage has been loaded.
+  private async read<T>(work: () => Promise<T>): Promise<T> {
+    this.hydrate();
+    return work();
+  }
+
+  // Every write is a read that is saved back to storage afterwards.
+  private async write<T>(work: () => Promise<T>): Promise<T> {
+    const result = await this.read(work);
+    this.persist();
+    return result;
   }
 
   private hydrate(): void {
@@ -196,47 +122,22 @@ export class JsonBookRepository implements BookRepository {
       return;
     }
     this.loaded = true;
-    const raw = this.storage?.getItem(STORAGE_KEY);
+    const raw = this.storage.getItem(STORAGE_KEY);
     if (!raw) {
       return;
     }
-    const snapshot = JSON.parse(raw) as ReturnType<MemoryBookRepository["dump"]> & {
-      cacheParser?: number;
-    };
-    this.memory.restore(
-      snapshot.cacheParser === 2 ? snapshot : { ...snapshot, isbnCache: {} },
-    );
-    if (snapshot.cacheParser !== 2) {
+    const snapshot = JSON.parse(raw) as Snapshot & { cacheParser?: number };
+    const current = snapshot.cacheParser === CACHE_PARSER_VERSION;
+    this.memory.restore(current ? snapshot : { ...snapshot, isbnCache: {} });
+    if (!current) {
       this.persist();
     }
   }
 
-  async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
-    this.hydrate();
-    return this.memory.loadLibrary(ownerId);
-  }
-
-  async save(ownerId: string, book: Book): Promise<Book> {
-    this.hydrate();
-    const saved = await this.memory.save(ownerId, book);
-    this.persist();
-    return saved;
-  }
-
-  async delete(ownerId: string, isbn: string): Promise<void> {
-    this.hydrate();
-    await this.memory.delete(ownerId, isbn);
-    this.persist();
-  }
-
-  async cachedIsbn(isbn: string): Promise<BookMetadata | null> {
-    this.hydrate();
-    return this.memory.cachedIsbn(isbn);
-  }
-
-  async cacheIsbn(metadata: BookMetadata): Promise<void> {
-    this.hydrate();
-    await this.memory.cacheIsbn(metadata);
-    this.persist();
+  private persist(): void {
+    this.storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...this.memory.dump(), cacheParser: CACHE_PARSER_VERSION }),
+    );
   }
 }

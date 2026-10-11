@@ -1,0 +1,21 @@
+flowchart TD
+    start((Start)) --> input{Camera allowed?}
+    input -- yes --> camera[Point camera at the barcode]
+    input -- no --> typed[Type the ISBN]
+    camera --> lookup[Look up the ISBN in<br/>Google Books + Open Library]
+    typed --> lookup
+    lookup --> found{Edition found?}
+    found -- no --> err[Show 'no book found' message] --> stop((End))
+    found -- yes --> dup{Already in library?}
+    dup -- yes --> confirmCopy[Confirm: add another copy] --> copy[Increase copy count] --> save
+    dup -- no --> pick[Pick the matching cover<br/>or photograph your own]
+    pick --> binding{Binding known?}
+    binding -- no --> askBinding[Ask: hardcover or paperback]
+    binding -- yes --> shelf
+    askBinding --> shelf{Owned or Wanted?}
+    shelf -- Wanted --> reading
+    shelf -- Owned --> acquired{Purchased or gifted?}
+    acquired -- purchased --> reading
+    acquired -- gifted --> giver[Enter the giver's name] --> reading
+    reading[Read or unread?] --> save[Save the book]
+    save --> show[Show it on TBR / Owned or Wanted] --> stop

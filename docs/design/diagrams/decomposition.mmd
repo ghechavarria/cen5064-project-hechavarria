@@ -1,0 +1,33 @@
+flowchart TB
+    subgraph P ["presentation/ (Presentation tier)"]
+        direction LR
+        views["components/<br/>ScreenHeader · MenuBar · BookCard · BookDetail<br/>OwnedCatalog · LetterRail · ScanForm · IsbnCamera<br/>PromptModal · CoverPicker · Tappable · TextField"]
+        vm["model/<br/>LibraryAppModel (view model)<br/>LibraryController · LibraryView · ScanDraft<br/>Catalog · AlphabetRail · Labels · PromptActions"]
+        dev["device/<br/>ExpoCoverCamera · Haptics"]
+        sty["styles/<br/>theme tokens · fonts ·<br/>one stylesheet per component"]
+    end
+    subgraph S ["service/ (Service tier)"]
+        direction LR
+        uc["UseCases<br/>LoadLibrary · LookupIsbn · ScanBook<br/>MoveBookToShelf · SetReadingStatus<br/>ChangeCover · DeleteBook · FillMissingFacts"]
+        ports["ports.ts<br/>BookRepository · IsbnLookup · IsbnCache"]
+    end
+    subgraph D ["domain/ (Domain tier)"]
+        dm["Book · PersonalLibrary<br/>AcquisitionRecord → Purchase / Gift<br/>Isbn · enums · domain errors"]
+    end
+    subgraph DA ["data/ (Data tier)"]
+        direction LR
+        repo["Repositories<br/>SqliteBookRepository · JsonBookRepository<br/>MemoryBookRepository · BookRowMapper"]
+        src["Book sources<br/>OpenLibraryIsbnLookup · GoogleBooksIsbnLookup<br/>MergedIsbnLookup · CachingIsbnLookup · Http"]
+    end
+    root["bootstrap.ts<br/>CompositionRoot"]
+    views --> vm
+    views --> sty
+    vm --> dev
+    vm --> uc
+    uc --> dm
+    uc --> ports
+    repo -. implements .-> ports
+    src -. implements .-> ports
+    root --> repo
+    root --> src
+    root --> uc

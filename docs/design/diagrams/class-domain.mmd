@@ -1,0 +1,57 @@
+classDiagram
+    class PersonalLibrary {
+        +has(isbn: String) boolean
+        +addBook(book: Book)
+        +get(isbn: String) Book
+        +remove(isbn: String)
+        +booksOn(shelf: Shelf, readingStatus: ReadingStatus) Book[]
+    }
+    class Book {
+        -isbn: String
+        -title: String
+        -author: String
+        -series: String
+        -copyCount: int
+        -format: BookFormat
+        -shelf: Shelf
+        -readingStatus: ReadingStatus
+        -acquisition: AcquisitionRecord
+        +addCopy()
+        +acquire(record: AcquisitionRecord)
+        +moveTo(shelf: Shelf)
+        +setReadingStatus(status: ReadingStatus)
+        +changeCover(url: String)
+        +fillFacts(facts: BookFacts)
+    }
+    class AcquisitionRecord {
+        <<abstract>>
+        +kind: Acquisition
+        +isComplete()* boolean
+        +describe()* String
+        +restore(kind, giftedBy)$ AcquisitionRecord
+    }
+    class Purchase {
+        +isComplete() boolean
+        +describe() String
+    }
+    class Gift {
+        -giver: String
+        +isComplete() boolean
+        +describe() String
+    }
+    class Shelf {
+        <<enumeration>>
+        OWNED
+        WANTED
+    }
+    class ReadingStatus {
+        <<enumeration>>
+        UNREAD
+        READ
+    }
+    PersonalLibrary "1" *-- "*" Book : catalogs
+    Book "1" *-- "0..1" AcquisitionRecord : acquisition
+    Purchase --|> AcquisitionRecord
+    Gift --|> AcquisitionRecord
+    Book "*" --> "1" Shelf : on
+    Book "*" --> "1" ReadingStatus : has

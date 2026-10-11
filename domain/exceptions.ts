@@ -1,6 +1,6 @@
 /**
- * Domain: typed errors for ISBN, acquisition, and gift-source rules.
- * Must not import React, SQLite, or HTTP.
+ * Domain: typed errors, one per broken rule (unknown ISBN, missing book, duplicate,
+ * no purchase or gift, gift without a giver). The view model shows their messages.
  */
 export class DomainError extends Error {
   constructor(message: string) {
@@ -23,14 +23,14 @@ export class DuplicateIsbnError extends DomainError {
 
 export class IsbnNotFoundError extends DomainError {
   constructor(isbn: string) {
-    super(`No Open Library record for ISBN ${isbn}`);
+    super(`No book found for ISBN ${isbn}`);
   }
 }
 
 export class NotAcquiredError extends DomainError {
   constructor(isbn: string) {
     super(
-      `Book ${isbn} must be marked purchased or gifted before leaving Wanted`,
+      `Book ${isbn} must be marked purchased or gifted before it can be Owned`,
     );
   }
 }

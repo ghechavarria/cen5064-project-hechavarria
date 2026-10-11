@@ -1,0 +1,51 @@
+classDiagram
+    direction LR
+    class LibraryUseCase {
+        <<abstract>>
+        #repository: BookRepository
+        #library(ownerId) PersonalLibrary
+        #updateBook(ownerId, isbn, change) Book
+    }
+    class LibraryLookupUseCase {
+        <<abstract>>
+        #isbnLookup: IsbnLookup
+        #tryFillFacts(book)
+    }
+    LoadLibraryUseCase --|> LibraryUseCase
+    MoveBookToShelfUseCase --|> LibraryUseCase
+    SetReadingStatusUseCase --|> LibraryUseCase
+    DeleteBookUseCase --|> LibraryUseCase
+    ChangeCoverUseCase --|> LibraryUseCase
+    LibraryLookupUseCase --|> LibraryUseCase
+    ScanBookUseCase --|> LibraryLookupUseCase
+    FillMissingFactsUseCase --|> LibraryLookupUseCase
+
+    class IsbnCache {
+        <<interface>>
+        +cachedIsbn(isbn) BookMetadata
+        +cacheIsbn(metadata)
+    }
+    class BookRepository {
+        <<interface>>
+        +loadLibrary(ownerId) PersonalLibrary
+        +save(ownerId, book) Book
+        +delete(ownerId, isbn)
+    }
+    class IsbnLookup {
+        <<interface>>
+        +byIsbn(isbn) BookMetadata
+    }
+    BookRepository --|> IsbnCache
+    LibraryUseCase --> BookRepository : uses
+    LibraryLookupUseCase --> IsbnLookup : uses
+    MemoryBookRepository ..|> BookRepository
+    JsonBookRepository ..|> BookRepository
+    SqliteBookRepository ..|> BookRepository
+    JsonBookRepository *-- MemoryBookRepository : persists
+    OpenLibraryIsbnLookup ..|> IsbnLookup
+    GoogleBooksIsbnLookup ..|> IsbnLookup
+    MergedIsbnLookup ..|> IsbnLookup
+    MergedIsbnLookup --> IsbnLookup : merges several
+    CachingIsbnLookup ..|> IsbnLookup
+    CachingIsbnLookup --> IsbnLookup : wraps
+    CachingIsbnLookup --> IsbnCache : caches in

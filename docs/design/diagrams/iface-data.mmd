@@ -1,0 +1,25 @@
+classDiagram
+    direction LR
+    class BookRepository {
+        <<interface>>
+        +loadLibrary(ownerId) PersonalLibrary
+        +save(ownerId, book) Book
+        +delete(ownerId, isbn)
+    }
+    class IsbnCache {
+        <<interface>>
+        +cachedIsbn(isbn) BookMetadata
+        +cacheIsbn(metadata)
+    }
+    class BookRowMapper {
+        +toBook(row)$ Book
+        +toRow(ownerId, book)$ BookRow
+        +withDefaults(row)$ BookRow
+    }
+    BookRepository --|> IsbnCache
+    SqliteBookRepository ..|> BookRepository
+    MemoryBookRepository ..|> BookRepository
+    JsonBookRepository ..|> BookRepository
+    JsonBookRepository *-- MemoryBookRepository
+    SqliteBookRepository --> BookRowMapper
+    MemoryBookRepository --> BookRowMapper

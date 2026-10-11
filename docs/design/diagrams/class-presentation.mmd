@@ -1,0 +1,29 @@
+classDiagram
+    class Observable~State~ {
+        <<abstract>>
+        +getState() State
+        +subscribe(listener)
+        #setState(patch)
+    }
+    class CoverCamera {
+        <<interface>>
+        +takePhoto() String
+    }
+    class CatalogGrouping {
+        <<abstract>>
+        +mode: CatalogMode
+        +label: String
+        +sections(books) CatalogSection[]
+        #sectionOf(book)* String
+    }
+    LibraryAppModel --|> Observable~State~
+    LibraryAppModel --> CoverCamera : photographs covers
+    ExpoCoverCamera ..|> CoverCamera
+    LibraryAppModel --> ScanDraft : holds while scanning
+    LibraryAppModel *-- LibraryController : uses
+    LibraryController --> LibraryView : builds
+    LibraryController --> LibraryUseCase : calls
+    Catalog --> CatalogGrouping : picks one per mode
+    TitleLetterGrouping --|> CatalogGrouping
+    AuthorGrouping --|> CatalogGrouping
+    SeriesGrouping --|> CatalogGrouping

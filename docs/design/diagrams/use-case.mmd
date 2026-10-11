@@ -1,0 +1,32 @@
+flowchart LR
+    reader(["Bibliophile"])
+    ol["Open Library<br/>«external»"]
+    gb["Google Books<br/>«external»"]
+    subgraph MyHomeLib [MyHomeLib]
+        direction TB
+        uc1([Scan or type an ISBN])
+        uc2([Confirm the edition and pick its cover])
+        uc3([Photograph my own cover])
+        uc4([Shelve as Owned or Wanted])
+        uc5([Record purchase or gift])
+        uc6([Mark read or unread])
+        uc7([Browse TBR, Owned, Wanted])
+        uc8([Group Owned by A–Z, author, series])
+        uc9([Move a book between shelves])
+        uc10([Delete a book])
+        uc11([Add another copy])
+    end
+    reader --- uc1
+    reader --- uc7
+    reader --- uc6
+    reader --- uc9
+    reader --- uc10
+    uc1 -. include .-> uc2
+    uc2 -. extend .-> uc3
+    uc1 -. include .-> uc4
+    uc4 -. include, Owned .-> uc5
+    uc1 -. extend, duplicate ISBN .-> uc11
+    uc7 -. extend .-> uc8
+    uc9 -. include, to Owned .-> uc5
+    uc1 --- ol
+    uc1 --- gb

@@ -1,0 +1,37 @@
+erDiagram
+    books {
+        INTEGER id PK
+        TEXT owner_id
+        TEXT isbn UK
+        TEXT title
+        TEXT author
+        TEXT cover_url
+        TEXT publisher
+        TEXT format "HARDCOVER | PAPERBACK | UNKNOWN"
+        TEXT shelf "OWNED | WANTED"
+        INTEGER copy_count
+        TEXT acquired_as "PURCHASED | GIFTED | null"
+        TEXT gifted_by
+        TEXT reading_status "UNREAD | READ"
+        TEXT series
+        TEXT description
+        TEXT published
+        INTEGER page_count
+        TEXT subjects
+    }
+    isbn_cache {
+        TEXT isbn PK
+        TEXT title
+        TEXT author
+        TEXT cover_url
+        TEXT cover_candidates "JSON array of URLs"
+        TEXT publisher
+        TEXT format
+        TEXT series
+        TEXT description
+        TEXT published
+        INTEGER page_count
+        TEXT subjects
+        INTEGER parser_v4 "lookup-format marker"
+    }
+    books }o..o| isbn_cache : "isbn (metadata looked up once)"

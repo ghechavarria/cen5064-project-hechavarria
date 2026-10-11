@@ -1,27 +1,22 @@
 /**
- * Service: MoveBookToShelfUseCase — Wanted → Owned after Domain acquisition rules.
- * Must not import React, SQLite, or fetch.
+ * Service: MoveBookToShelfUseCase — move a book between Owned and Wanted. Moving
+ * to Owned records the purchase or gift first; the Domain refuses an incomplete one.
  */
-import { Acquisition, Book, Shelf } from "../domain";
-import { BookRepository } from "./ports";
+import { AcquisitionRecord, Book, Shelf } from "../domain";
+import { LibraryUseCase } from "./libraryUseCase";
 
-export class MoveBookToShelfUseCase {
-  constructor(private readonly repository: BookRepository) {}
-
-  async execute(
+export class MoveBookToShelfUseCase extends LibraryUseCase {
+  execute(
     ownerId: string,
     isbn: string,
     targetShelf: Shelf,
-    acquisition?: { type: Acquisition; giftedBy?: string },
+    acquisition?: AcquisitionRecord,
   ): Promise<Book> {
-    const book = (await this.repository.loadLibrary(ownerId)).get(isbn);
-    if (acquisition?.type === Acquisition.PURCHASED) {
-      book.markPurchased();
-    }
-    if (acquisition?.type === Acquisition.GIFTED) {
-      book.markGifted(acquisition.giftedBy ?? "");
-    }
-    book.moveTo(targetShelf);
-    return this.repository.save(ownerId, book);
+    return this.updateBook(ownerId, isbn, (book) => {
+      if (acquisition) {
+        book.acquire(acquisition);
+      }
+      book.moveTo(targetShelf);
+    });
   }
 }
