@@ -35,10 +35,12 @@ class GoogleBooksVolume {
     return this.coverUrl !== "";
   }
 
-  // True only when this volume is the scanned edition (its ISBN-10 or ISBN-13 matches).
+  // True only when this volume is the scanned edition. An ISBN-10 and its
+  // ISBN-13 name the same edition, so both sides are compared as ISBN-13.
   get isEdition(): boolean {
+    const scanned = Isbn.canonical(this.isbn);
     return (this.info.industryIdentifiers ?? []).some(
-      (identifier) => Isbn.normalize(identifier.identifier) === this.isbn,
+      (identifier) => Isbn.canonical(identifier.identifier) === scanned,
     );
   }
 

@@ -9,8 +9,9 @@ import { BookNotFoundError, DuplicateIsbnError } from "./exceptions";
 export class PersonalLibrary {
   constructor(private readonly _books: Book[] = []) {}
 
-  get books(): Book[] {
-    return this._books;
+  // A copy: adding or removing books goes through addBook / remove and their rules.
+  get books(): readonly Book[] {
+    return [...this._books];
   }
 
   has(isbn: string): boolean {

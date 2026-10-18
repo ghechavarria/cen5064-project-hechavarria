@@ -31,7 +31,6 @@ const BOOK_COLUMNS = [
 // migrate() adds any that an older database is missing.
 const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   ["books", "reading_status", "TEXT NOT NULL DEFAULT 'UNREAD'"],
-  ["books", "collection", "TEXT NOT NULL DEFAULT ''"],
   ["books", "series", "TEXT NOT NULL DEFAULT ''"],
   ["books", "description", "TEXT NOT NULL DEFAULT ''"],
   ["books", "published", "TEXT NOT NULL DEFAULT ''"],
@@ -75,12 +74,13 @@ export class SqliteBookRepository implements BookRepository {
     return run;
   }
 
-  private async migrate(): Promise<void> {
-    await this.db.execAsync(`
-      CREATE TABLE IF NOT EXISTS books (
+  // The books table as it is today. An ISBN is unique per owner, not across owners.
+  private static booksTable(name: string): string {
+    return `
+      CREATE TABLE IF NOT EXISTS ${name} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         owner_id TEXT NOT NULL,
-        isbn TEXT NOT NULL UNIQUE,
+        isbn TEXT NOT NULL,
         title TEXT NOT NULL,
         author TEXT NOT NULL,
         cover_url TEXT NOT NULL,
@@ -94,8 +94,15 @@ export class SqliteBookRepository implements BookRepository {
         description TEXT NOT NULL DEFAULT '',
         published TEXT NOT NULL DEFAULT '',
         page_count INTEGER NOT NULL DEFAULT 0,
-        subjects TEXT NOT NULL DEFAULT ''
-      );
+        subjects TEXT NOT NULL DEFAULT '',
+        format TEXT NOT NULL DEFAULT 'UNKNOWN',
+        UNIQUE (owner_id, isbn)
+      );`;
+  }
+
+  private async migrate(): Promise<void> {
+    await this.db.execAsync(`
+      ${SqliteBookRepository.booksTable("books")}
       CREATE TABLE IF NOT EXISTS isbn_cache (
         isbn TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -131,12 +138,63 @@ export class SqliteBookRepository implements BookRepository {
     await this.db.execAsync(
       `UPDATE books SET shelf = 'OWNED', reading_status = 'UNREAD' WHERE shelf = 'TBR';`,
     );
-    try {
+    // Older builds called the series "collection".
+    if (existing.books.includes("collection")) {
       await this.db.execAsync(
-        `UPDATE books SET series = collection WHERE (series IS NULL OR series = '') AND collection IS NOT NULL AND collection != '';`,
+        `UPDATE books SET series = collection WHERE series = '' AND collection IS NOT NULL AND collection != '';`,
       );
-    } catch {
-      /* collection column absent on some schemas */
+    }
+    await this.rebuildIfIsbnGloballyUnique();
+    await this.rekeyIsbn10Rows();
+  }
+
+  // Rows saved before books were keyed by ISBN-13 may hold a typed ISBN-10. Each
+  // becomes its ISBN-13; if the owner already has that row, the two are one book,
+  // so the copies are added together (the duplicate-ISBN rule) and the old row goes.
+  private async rekeyIsbn10Rows(): Promise<void> {
+    const rows = await this.db.getAllAsync<{ id: number; owner_id: string; isbn: string; copy_count: number }>(
+      "SELECT id, owner_id, isbn, copy_count FROM books WHERE length(isbn) = 10",
+    );
+    for (const row of rows) {
+      const key = BookRowMapper.isbnKey(row.isbn);
+      if (key === row.isbn) {
+        continue;
+      }
+      const existing = await this.db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM books WHERE owner_id = ? AND isbn = ?",
+        [row.owner_id, key],
+      );
+      if (existing) {
+        await this.db.runAsync("UPDATE books SET copy_count = copy_count + ? WHERE id = ?", [row.copy_count, existing.id]);
+        await this.db.runAsync("DELETE FROM books WHERE id = ?", [row.id]);
+      } else {
+        await this.db.runAsync("UPDATE books SET isbn = ? WHERE id = ?", [key, row.id]);
+      }
+    }
+  }
+
+  // Builds before the owner fix declared the ISBN unique across all owners, so a
+  // second owner could not shelve the same book. SQLite can't drop a constraint:
+  // copy the rows into a table with UNIQUE (owner_id, isbn), in one transaction.
+  private async rebuildIfIsbnGloballyUnique(): Promise<void> {
+    const table = await this.db.getFirstAsync<{ sql: string }>(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'books'",
+    );
+    if (!table || !/isbn\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(table.sql)) {
+      return;
+    }
+    const columns = ["id", "owner_id", "isbn", ...BOOK_COLUMNS].join(", ");
+    try {
+      await this.db.execAsync(`
+        BEGIN;
+        ${SqliteBookRepository.booksTable("books_by_owner")}
+        INSERT INTO books_by_owner (${columns}) SELECT ${columns} FROM books;
+        DROP TABLE books;
+        ALTER TABLE books_by_owner RENAME TO books;
+        COMMIT;`);
+    } catch (error) {
+      await this.db.execAsync("ROLLBACK;").catch(() => undefined);
+      throw error;
     }
   }
 
@@ -152,16 +210,17 @@ export class SqliteBookRepository implements BookRepository {
 
   async save(ownerId: string, book: Book): Promise<Book> {
     return this.enqueue(async () => {
-      // Same ISBN already stored → UPDATE that row; otherwise INSERT a new one.
+      // This owner already has the ISBN → UPDATE that row; otherwise INSERT a new one.
+      // Every value is a bound parameter; only the fixed column names are spliced in.
       const existing = await this.db.getFirstAsync<{ isbn: string }>(
-        "SELECT isbn FROM books WHERE isbn = ?",
-        [book.isbn],
+        "SELECT isbn FROM books WHERE owner_id = ? AND isbn = ?",
+        [ownerId, book.isbn],
       );
       const values = this.bookValues(book);
       if (existing) {
         await this.db.runAsync(
-          `UPDATE books SET ${BOOK_COLUMNS.map((column) => `${column}=?`).join(", ")} WHERE isbn=?`,
-          [...values, book.isbn],
+          `UPDATE books SET ${BOOK_COLUMNS.map((column) => `${column}=?`).join(", ")} WHERE owner_id=? AND isbn=?`,
+          [...values, ownerId, book.isbn],
         );
         return book;
       }
@@ -196,8 +255,7 @@ export class SqliteBookRepository implements BookRepository {
         title: String(row.title),
         author: String(row.author),
         coverUrl: String(row.cover_url),
-        // Stored as a JSON array of URLs.
-        coverCandidates: JSON.parse(String(row.cover_candidates ?? "[]")) as string[],
+        coverCandidates: BookRowMapper.coverList(row.cover_candidates),
         publisher: String(row.publisher),
         format: (row.format as BookFormat) || BookFormat.UNKNOWN,
         series: String(row.series ?? ""),
@@ -231,8 +289,8 @@ export class SqliteBookRepository implements BookRepository {
     });
   }
 
-  // Same order as BOOK_COLUMNS.
-  private bookValues(book: Book): (string | number)[] {
+  // Same order as BOOK_COLUMNS. No acquisition is stored as NULL, as the schema intends.
+  private bookValues(book: Book): (string | number | null)[] {
     return [
       book.title,
       book.author,
@@ -240,8 +298,8 @@ export class SqliteBookRepository implements BookRepository {
       book.publisher,
       book.shelf,
       book.copyCount,
-      book.acquiredAs ?? "",
-      book.giftedBy ?? "",
+      book.acquiredAs,
+      book.giftedBy,
       book.readingStatus,
       book.series,
       book.description,

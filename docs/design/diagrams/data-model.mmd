@@ -1,8 +1,8 @@
 erDiagram
     books {
         INTEGER id PK
-        TEXT owner_id
-        TEXT isbn UK
+        TEXT owner_id UK "unique together with isbn"
+        TEXT isbn UK "one row per owner and ISBN"
         TEXT title
         TEXT author
         TEXT cover_url

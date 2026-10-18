@@ -1,6 +1,8 @@
 /**
- * Service barrel: every use case, the shared base classes, and UseCases.
+ * Service barrel: every use case, the shared base classes, UseCases, and the
+ * book-source error the screens show.
  */
+export { BookSourceUnavailableError } from "./ports";
 export { ChangeCoverUseCase } from "./changeCover";
 export { DeleteBookUseCase } from "./deleteBook";
 export { FillMissingFactsUseCase } from "./fillMissingFacts";

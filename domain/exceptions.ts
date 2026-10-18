@@ -1,5 +1,5 @@
 /**
- * Domain: typed errors, one per broken rule (unknown ISBN, missing book, duplicate,
+ * Domain: typed errors, one per broken rule (invalid or unknown ISBN, missing book, duplicate,
  * no purchase or gift, gift without a giver). The view model shows their messages.
  */
 export class DomainError extends Error {
@@ -18,6 +18,12 @@ export class BookNotFoundError extends DomainError {
 export class DuplicateIsbnError extends DomainError {
   constructor(isbn: string) {
     super(`ISBN ${isbn} is already in your library`);
+  }
+}
+
+export class InvalidIsbnError extends DomainError {
+  constructor(raw: string) {
+    super(raw ? `${raw} is not a valid ISBN. Check the number and try again.` : "Enter an ISBN to look up.");
   }
 }
 

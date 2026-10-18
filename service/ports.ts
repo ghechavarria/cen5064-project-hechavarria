@@ -1,5 +1,6 @@
 /**
- * Service: IsbnLookup and BookRepository ports (interfaces the Data tier implements).
+ * Service: the IsbnLookup, IsbnCache and BookRepository ports (interfaces the
+ * Data tier implements), and the one error a book source may throw.
  */
 import { Book, BookFacts, PersonalLibrary } from "../domain";
 
@@ -14,6 +15,18 @@ export type BookMetadata = BookFacts & {
   coverUrl: string;
   coverCandidates: string[];
 };
+
+/**
+ * A book source could not answer (offline, timed out, rate-limited, or sent
+ * unreadable data). Data adapters throw it; the view model shows its message.
+ * Not a DomainError: nothing about the ISBN is wrong, so the owner can retry.
+ */
+export class BookSourceUnavailableError extends Error {
+  constructor(readonly detail: string) {
+    super("Couldn't reach the book sources. Check your connection and try again.");
+    this.name = "BookSourceUnavailableError";
+  }
+}
 
 export interface IsbnLookup {
   byIsbn(isbn: string): Promise<BookMetadata>;
