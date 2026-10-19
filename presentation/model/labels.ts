@@ -5,6 +5,9 @@
 import { Book, BookFormat, ReadingStatus, Shelf } from "../../domain";
 
 export class Labels {
+  // The web build has no camera: barcode scanning and cover photos need the phone app.
+  static readonly mobileCameraOnly = "To use the camera, open MyHomeLib on your phone.";
+
   static shelf(shelf: Shelf): string {
     return shelf === Shelf.OWNED ? "Owned" : "Wanted";
   }

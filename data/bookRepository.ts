@@ -5,10 +5,13 @@
  */
 import { Book, PersonalLibrary } from "../domain";
 import { BookMetadata, BookRepository } from "../service/ports";
-import { BookRow, BookRowMapper } from "./bookRowMapper";
+import { BookRow, BookRowMapper, StoredRow } from "./bookRowMapper";
 
 /** Everything the memory store holds; JSON saves exactly this. */
 type Snapshot = { books: BookRow[]; isbnCache: Record<string, BookMetadata> };
+
+/** A snapshot as read back from storage: possibly from an older build, possibly damaged. */
+type StoredSnapshot = { books?: StoredRow[]; isbnCache?: Snapshot["isbnCache"] };
 
 /** In-memory store: rows in an array, ISBN cache in a map. */
 export class MemoryBookRepository implements BookRepository {
@@ -19,15 +22,33 @@ export class MemoryBookRepository implements BookRepository {
     return { books: this.books, isbnCache: this.isbnCache };
   }
 
-  // Rows and cache entries saved by older builds get today's defaults.
-  restore(snapshot: Snapshot): void {
-    this.books = snapshot.books.map((row) => BookRowMapper.withDefaults(row));
-    this.isbnCache = Object.fromEntries(
-      Object.entries(snapshot.isbnCache).map(([isbn, metadata]) => [
-        isbn,
-        BookRowMapper.metadataWithDefaults(metadata),
-      ]),
+  // Rows and cache entries saved by older builds get today's defaults; rows too
+  // damaged to say whose book or which ISBN they are, are skipped.
+  restore(snapshot: StoredSnapshot): void {
+    const books: unknown[] = Array.isArray(snapshot.books) ? snapshot.books : [];
+    this.books = MemoryBookRepository.mergeSameBook(
+      books.filter(BookRowMapper.isUsable).map((row) => BookRowMapper.withDefaults(row)),
     );
+    const cache = snapshot.isbnCache && typeof snapshot.isbnCache === "object" ? snapshot.isbnCache : {};
+    this.isbnCache = Object.fromEntries(
+      Object.entries(cache).map(([isbn, metadata]) => [isbn, BookRowMapper.metadataWithDefaults(metadata)]),
+    );
+  }
+
+  // An old save may hold one book twice (typed as ISBN-10, later scanned as
+  // ISBN-13; both now map to the same key). Keep the first row and add the copies.
+  private static mergeSameBook(rows: BookRow[]): BookRow[] {
+    const byKey = new Map<string, BookRow>();
+    for (const row of rows) {
+      const key = `${row.ownerId}\u0000${row.isbn}`;
+      const first = byKey.get(key);
+      if (first) {
+        first.copyCount += row.copyCount;
+      } else {
+        byKey.set(key, { ...row });
+      }
+    }
+    return [...byKey.values()];
   }
 
   async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
@@ -70,6 +91,8 @@ type KeyValueStorage = {
 };
 
 const STORAGE_KEY = "myhomelib.library.v1";
+// Where an unreadable save is kept, untouched, before the app starts over with an empty library.
+const BACKUP_KEY = `${STORAGE_KEY}.unreadable`;
 // Bumped when the lookup sources change (4: edition-first + Google Books with
 // cover-by-ISBN); cached lookups from an older version are dropped and fetched again.
 const CACHE_PARSER_VERSION = 4;
@@ -126,11 +149,27 @@ export class JsonBookRepository implements BookRepository {
     if (!raw) {
       return;
     }
-    const snapshot = JSON.parse(raw) as Snapshot & { cacheParser?: number };
+    const snapshot = JsonBookRepository.parse(raw);
+    if (!snapshot) {
+      // Corrupted (half-written or hand-edited): keep a copy instead of crashing at start-up.
+      this.storage.setItem(BACKUP_KEY, raw);
+      this.persist();
+      return;
+    }
     const current = snapshot.cacheParser === CACHE_PARSER_VERSION;
     this.memory.restore(current ? snapshot : { ...snapshot, isbnCache: {} });
     if (!current) {
       this.persist();
+    }
+  }
+
+  // The stored JSON as a snapshot, or null when it isn't a JSON object at all.
+  private static parse(raw: string): (StoredSnapshot & { cacheParser?: number }) | null {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
     }
   }
 

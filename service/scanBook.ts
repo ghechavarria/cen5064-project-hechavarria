@@ -17,7 +17,7 @@ export class ScanBookUseCase extends LibraryLookupUseCase {
     acquisition?: AcquisitionRecord,
     choices: ScanChoices = {},
   ): Promise<Book> {
-    const key = Isbn.normalize(isbn);
+    const key = Isbn.parse(isbn);
     const library = await this.library(ownerId);
 
     // Already cataloged: one more copy, and top up any missing facts.

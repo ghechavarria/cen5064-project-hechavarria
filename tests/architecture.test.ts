@@ -16,7 +16,7 @@ function sources(folder: string): Source[] {
   return readdirSync(join(ROOT, folder)).flatMap((name): Source[] => {
     const path = `${folder}/${name}`;
     if (statSync(join(ROOT, path)).isDirectory()) {
-      return name === "__pycache__" ? [] : sources(path);
+      return sources(path);
     }
     return /\.tsx?$/.test(name) ? [{ file: path, text: readFileSync(join(ROOT, path), "utf8") }] : [];
   });

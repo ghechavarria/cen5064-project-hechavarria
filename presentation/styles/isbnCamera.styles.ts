@@ -1,4 +1,4 @@
-/** Styles for IsbnCamera (permission card and live preview). */
+/** Styles for IsbnCamera (message card and live preview). */
 import { Platform, StyleSheet } from "react-native";
 import { fillParent, font, panelSurface, radius, space, text, theme } from "./theme";
 
@@ -15,7 +15,7 @@ export const styles = StyleSheet.create({
   },
   preview: {
     position: "relative",
-    height: Platform.OS === "web" ? 200 : 280,
+    height: 280,
     // No fill here. On Android the camera is a surface behind this view, so a
     // background (theme.bg, the dark blue) or a rounded clip is drawn on top of it.
     backgroundColor: "transparent",
@@ -24,8 +24,6 @@ export const styles = StyleSheet.create({
     marginHorizontal: space.lg,
     marginBottom: space.md,
   },
-  // Fills the preview. The camera is not measured: on web that measurement stays
-  // at width 0, so the view never mounts and the dark preview covers it.
   camera: fillParent,
   reticle: { position: "absolute", left: 28, right: 28, top: "32%", height: 88, zIndex: 1 },
   // Corner brackets: two glowing edges each, rounded on the outside corner.

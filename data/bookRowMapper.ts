@@ -1,10 +1,10 @@
 /**
  * Data: BookRowMapper — the single translation between a stored row and a
  * domain Book (Data Mapper pattern). The Memory, JSON, and SQLite adapters all
- * use it, so the column ↔ field list exists in one place only.
- * Domain never sees rows.
+ * use it, so the column ↔ field list and the rules for old or damaged rows
+ * exist in one place only. Domain never sees rows.
  */
-import { Acquisition, AcquisitionRecord, Book, BookFormat, BookProps, ReadingStatus, Shelf } from "../domain";
+import { Acquisition, AcquisitionRecord, Book, BookFormat, BookProps, Isbn, ReadingStatus, Shelf } from "../domain";
 import { BookMetadata } from "../service/ports";
 
 /**
@@ -17,9 +17,12 @@ export type BookRow = Required<Omit<BookProps, "acquisition">> & {
   giftedBy: string | null;
 };
 
-/** A row as an older build may have stored it: newer fields can be missing. */
-type StoredRow = Partial<BookRow> &
-  Pick<BookRow, "ownerId" | "isbn" | "title" | "author" | "coverUrl" | "publisher" | "shelf" | "copyCount"> & {
+/**
+ * A row as an older build (or a damaged file) may have stored it: only the
+ * owner and ISBN are required; anything else may be missing or malformed.
+ */
+export type StoredRow = Partial<BookRow> &
+  Pick<BookRow, "ownerId" | "isbn"> & {
     collection?: string; // what older builds called the series
   };
 
@@ -52,22 +55,42 @@ export class BookRowMapper {
     };
   }
 
-  // Any stored row (JSON or SQLite, old or new) → a complete BookRow. Older builds
-  // had a third "TBR" shelf (now Owned + unread) and lacked the newer fact columns.
+  // A row can be restored only if it still says whose book it is and which ISBN;
+  // anything else (null, a string, a row missing those keys) is skipped on load.
+  static isUsable(row: unknown): row is StoredRow {
+    const candidate = row as Partial<StoredRow> | null;
+    return (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      BookRowMapper.text(candidate.ownerId) !== "" &&
+      BookRowMapper.text(candidate.isbn) !== ""
+    );
+  }
+
+  // Any stored row (JSON or SQLite, old or new) → a complete, valid BookRow.
+  //  - older builds had a third "TBR" shelf (now Owned + unread) and called the series "collection";
+  //  - newer fact columns may be missing;
+  //  - values outside an enum, or of the wrong type, fall back to the safe default.
   static withDefaults(row: StoredRow): BookRow {
-    const { collection, ...stored } = row;
+    const acquiredAs = BookRowMapper.oneOf(Object.values(Acquisition), row.acquiredAs, null);
     return {
-      ...stored,
-      shelf: String(row.shelf) === "TBR" ? Shelf.OWNED : row.shelf,
-      acquiredAs: row.acquiredAs || null,
-      giftedBy: row.giftedBy || null,
-      readingStatus: row.readingStatus ?? ReadingStatus.UNREAD,
-      series: row.series || collection || "",
-      description: row.description ?? "",
-      published: row.published ?? "",
-      pageCount: row.pageCount ?? 0,
-      subjects: row.subjects ?? "",
-      format: row.format || BookFormat.UNKNOWN,
+      ownerId: BookRowMapper.text(row.ownerId),
+      isbn: BookRowMapper.isbnKey(row.isbn),
+      title: BookRowMapper.text(row.title) || "Untitled",
+      author: BookRowMapper.text(row.author) || "Unknown",
+      coverUrl: BookRowMapper.text(row.coverUrl),
+      publisher: BookRowMapper.text(row.publisher),
+      shelf: String(row.shelf) === "TBR" ? Shelf.OWNED : BookRowMapper.oneOf(Object.values(Shelf), row.shelf, Shelf.WANTED),
+      copyCount: Math.max(1, Math.floor(Number(row.copyCount)) || 1),
+      acquiredAs,
+      giftedBy: acquiredAs === Acquisition.GIFTED ? BookRowMapper.text(row.giftedBy) || null : null,
+      readingStatus: BookRowMapper.oneOf(Object.values(ReadingStatus), row.readingStatus, ReadingStatus.UNREAD),
+      series: BookRowMapper.text(row.series) || BookRowMapper.text(row.collection),
+      description: BookRowMapper.text(row.description),
+      published: BookRowMapper.text(row.published),
+      pageCount: Math.max(0, Math.floor(Number(row.pageCount)) || 0),
+      subjects: BookRowMapper.text(row.subjects),
+      format: BookRowMapper.oneOf(Object.values(BookFormat), row.format, BookFormat.UNKNOWN),
     };
   }
 
@@ -86,5 +109,32 @@ export class BookRowMapper {
       pageCount: metadata.pageCount ?? 0,
       subjects: metadata.subjects ?? "",
     };
+  }
+
+  // A JSON array of cover URLs as stored in SQLite; anything unreadable counts as none.
+  static coverList(stored: unknown): string[] {
+    try {
+      const parsed: unknown = JSON.parse(String(stored ?? "[]"));
+      return Array.isArray(parsed) ? parsed.filter((url): url is string => typeof url === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Rows saved before the library keyed books by ISBN-13 may hold a typed
+  // ISBN-10; it becomes its ISBN-13. Anything that isn't an ISBN is kept as stored.
+  static isbnKey(stored: unknown): string {
+    const isbn = BookRowMapper.text(stored);
+    return Isbn.isValid(isbn) ? Isbn.canonical(isbn) : isbn;
+  }
+
+  // A trimmed string; null, undefined, and non-strings read as "".
+  private static text(value: unknown): string {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  // The stored value if it is one of the allowed enum values, otherwise the fallback.
+  private static oneOf<T extends string, F>(allowed: T[], value: unknown, fallback: F): T | F {
+    return allowed.includes(value as T) ? (value as T) : fallback;
   }
 }

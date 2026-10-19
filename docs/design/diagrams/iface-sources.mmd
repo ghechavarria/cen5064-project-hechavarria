@@ -15,6 +15,10 @@ classDiagram
         +getJson(url)$ Json
         +contentType(url)$ String
     }
+    class BookSourceUnavailableError {
+        <<error>>
+        +detail: String
+    }
     CachingIsbnLookup ..|> IsbnLookup
     MergedIsbnLookup ..|> IsbnLookup
     OpenLibraryIsbnLookup ..|> IsbnLookup
@@ -24,3 +28,4 @@ classDiagram
     MergedIsbnLookup --> OpenLibraryIsbnLookup : asks
     OpenLibraryIsbnLookup --> Http
     GoogleBooksIsbnLookup --> Http
+    Http ..> BookSourceUnavailableError : throws on timeout, error status, bad JSON

@@ -6,6 +6,8 @@ sequenceDiagram
     participant R as BookRepository
     U->>UI: scan ISBN barcode
     UI->>S: LookupIsbnUseCase.execute(isbn)
+    S->>S: Isbn.parse(isbn)
+    Note right of S: a typo stops here (InvalidIsbnError), before any network call
     S->>L: byIsbn(isbn)
     Note right of L: Google Books + Open Library, merged, cached
     L-->>S: BookMetadata (cover candidates, binding)

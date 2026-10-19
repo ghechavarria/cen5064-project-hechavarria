@@ -11,6 +11,7 @@
  */
 import { AcquisitionRecord, Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../../domain";
 import { DomainError } from "../../domain/exceptions";
+import { BookSourceUnavailableError } from "../../service";
 import { CatalogMode } from "./catalog";
 import { CameraUnavailableError, CoverCamera } from "./coverCamera";
 import { Labels } from "./labels";
@@ -458,7 +459,8 @@ export class LibraryAppModel extends Observable<AppState> {
   /**
    * The one wrapper every action goes through: set busy, close the popup,
    * do the work, reload the view, and turn errors into a flash banner
-   * (domain rule messages as a normal notice, anything unexpected in red).
+   * (domain rule messages as a normal notice; an unreachable book source or
+   * anything unexpected in red).
    */
   private async run(work: (library: LibraryController) => Promise<void>): Promise<void> {
     const library = this.controller;
@@ -470,10 +472,14 @@ export class LibraryAppModel extends Observable<AppState> {
       await work(library);
       this.setState({ view: await library.view() });
     } catch (error) {
-      this.flash(
-        error instanceof DomainError ? error.message : "Could not update the library.",
-        error instanceof DomainError ? "info" : "danger",
-      );
+      if (error instanceof DomainError) {
+        this.flash(error.message);
+      } else {
+        this.flash(
+          error instanceof BookSourceUnavailableError ? error.message : "Could not update the library.",
+          "danger",
+        );
+      }
     } finally {
       this.setState({ busy: false });
     }

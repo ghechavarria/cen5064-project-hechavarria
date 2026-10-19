@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "node scripts/start-expo.cjs",
-    "android": "node scripts/start-expo.cjs --android",
-    "ios": "node scripts/start-expo.cjs --ios",
-    "web": "node scripts/start-expo.cjs --web",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
     "test": "jest --config jest.config.js"
   },
   "dependencies": {

@@ -1,12 +1,15 @@
 /**
- * Device: ExpoCoverCamera — CoverCamera on Expo. Opens the camera (a file /
- * webcam picker on Expo web), lets the owner crop to the cover, then shrinks
- * the photo to a small JPEG kept inline as a data URI, so it can be stored with
- * the book in SQLite or browser storage and never depends on a temporary file.
+ * Device: ExpoCoverCamera — CoverCamera on Expo. Opens the phone camera, lets
+ * the owner crop to the cover, then shrinks the photo to a small JPEG kept
+ * inline as a data URI, so it can be stored with the book in SQLite and never
+ * depends on a temporary file. In a web browser it refuses and points to the
+ * phone app.
  */
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import { Platform } from "react-native";
 import { CameraUnavailableError, CoverCamera } from "../model/coverCamera";
+import { Labels } from "../model/labels";
 
 // Big enough for the detail screen, small enough (~20–40 KB) to store many.
 const COVER_WIDTH = 360;
@@ -14,6 +17,9 @@ const JPEG_QUALITY = 0.6;
 
 export class ExpoCoverCamera implements CoverCamera {
   async takePhoto(): Promise<string | null> {
+    if (Platform.OS === "web") {
+      throw new CameraUnavailableError(Labels.mobileCameraOnly);
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       throw new CameraUnavailableError("Allow camera access to photograph your cover.");

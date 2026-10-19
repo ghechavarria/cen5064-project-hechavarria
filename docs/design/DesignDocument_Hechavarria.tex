@@ -81,7 +81,7 @@
 
 \vspace{2cm}
 
-{\large Version 1.0}
+{\large Version 1.1}
 
 \vspace{3cm}
 
@@ -123,6 +123,8 @@ October 10, 2026
 \hline
 1.0 & Grace Hechavarria & Initial release: architecture, components, detailed design, sprint planning, design rationale, and verification of the midterm build. & October 10, 2026 \\
 \hline
+1.1 & Grace Hechavarria & Sprint 7 hardening: ISBN check-digit validation, one error type and a timeout for unreachable book sources, recovery from damaged storage, books unique per owner in SQLite, one ISBN-13 key per book (ADR-010); scope for the final frozen to four core features, with the second-half plan aligned to it; 145 automated tests. & October 18, 2026 \\
+\hline
 \end{tabular}
 \end{table}
 
@@ -139,12 +141,12 @@ October 10, 2026
 
 \textbf{What:} MyHomeLib is a cross-platform mobile app (Expo Go on iPhone and Android, with a web fallback) for cataloging a personal home library by scanning each book's ISBN. \textbf{For whom:} a bibliophile who owns a growing collection of physical books and wants to know exactly what is on their shelves, what they still want, and what they have not read yet.
 
-\textbf{Core use cases:}
+\textbf{Core features} (the scope for the final, frozen at the midterm check-in: nothing new is added until these four are complete and tested):
 \begin{enumerate}[label=\textbf{UC\arabic*}, leftmargin=3.2em]
-    \item \textbf{Scan a book:} read the ISBN with the camera (or type it), see the exact edition's details, and pick the cover that matches the copy in hand.
-    \item \textbf{Shelve it:} file it as Owned or Wanted. An Owned book must be recorded as purchased or gifted (a gift needs the giver's name), and a duplicate ISBN adds a copy instead of a second entry.
-    \item \textbf{Browse the library:} To Be Read (Owned books, unread or read), the Owned catalog grouped A--Z, by author, or by series, and the Wanted list.
-    \item \textbf{Manage a book:} mark it read or unread, move it between shelves, replace its cover with a photo, or delete it.
+    \item \textbf{Scan a book:} scan or type an ISBN to look up the exact edition from Open Library and Google Books, then pick the cover that matches your copy or photograph it.
+    \item \textbf{Shelve it, with rules enforced:} file the book as Owned or Wanted, and as read or unread. An Owned book must be marked purchased or gifted, and a gift needs the giver's name. Scanning a book you already have adds a copy instead of a duplicate.
+    \item \textbf{Browse and manage your library:} see To Be Read (unread and read), the Owned catalog grouped A--Z, by author or by series, and the Wanted list. From a book's page you can mark it read, move it, change its cover, or delete it.
+    \item \textbf{Google Account library sync} (planned for weeks 10--11, not built yet): sign in with a Google account to keep your library synced and backed up to your account across sessions and devices.
 \end{enumerate}
 
 \textbf{Within course limits:} one data store (SQLite on the device), a four-tier architecture, official book APIs only (no scraping), and an app the review partner can run without a Mac or paid accounts. This document describes that design for the course instructor, the peer review partner, and any engineer who will maintain the system: how it is divided into tiers and components, how they communicate, why the main decisions were made, and how each requirement was verified.
@@ -156,7 +158,7 @@ The primary customer is the end user: a bibliophile who owns a large or growing 
 The course and instructor set the following constraints, which shaped the design:
 \begin{itemize}
     \item \textbf{Platform a partner can run.} The review partner must be able to clone the repository and run the app without a Mac, Xcode, Android Studio, or a paid developer account. This led to Expo Go (ADR-001, ADR-005).
-    \item \textbf{One data store.} The project may use a single persistence technology. On a phone that is SQLite; on the web fallback the same port is backed by browser storage (ADR-002).
+    \item \textbf{One data store.} The project may use a single persistence technology. On a phone that is SQLite; on the web fallback the same port is backed by browser storage (ADR-002). Feature 4 is planned to keep this: the device store stays the only working store, and the account copy is a backup of it, reached through the same \texttt{BookRepository} port; the approach will be recorded in an ADR before it is built.
     \item \textbf{Limited external integrations, and no scraping.} Bookstore web scraping was proposed early and dropped at the instructor's request (ADR-004). Book metadata comes only from official APIs: Open Library (no key) and, optionally, Google Books (free key) (ADR-003, ADR-006).
     \item \textbf{Documented architecture.} The repository must show a tier breakdown, C4 diagrams (Context, Container, Component), UML class and sequence diagrams, and Architecture Decision Records, and the code must follow them.
     \item \textbf{Code quality.} The code must use classes to bundle data with behavior, apply the object-oriented techniques that fit the problem, avoid duplication, and keep every stylesheet in its own imported file.
@@ -188,11 +190,11 @@ The core features are:
     \item \textbf{Book detail} with edition facts, binding, read/unread toggle, shelf moves, a cover photo option, and deletion with confirmation.
 \end{enumerate}
 
-Unlike reading-tracker apps, MyHomeLib records the physical copy: which edition and binding it is, how many copies the owner has, and whether each one was bought or received as a gift. It runs entirely on the user's device with no account, so the library stays private. The expected impact is fewer duplicate purchases, a reliable to-be-read list, and a record of gifts.
+Unlike reading-tracker apps, MyHomeLib records the physical copy: which edition and binding it is, how many copies the owner has, and whether each one was bought or received as a gift. It runs on the user's device and works offline, so the library stays private; the planned Google Account sync (feature 4) adds an optional backup to the owner's own account, not a shared service. The expected impact is fewer duplicate purchases, a reliable to-be-read list, and a record of gifts.
 
 \subsection{Scope}
 
-This document covers the midterm version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and six major components: the Presentation view model, the Service use cases, the Domain model, the book repositories, the book-source adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. Out of scope: user accounts, cloud synchronization, sharing between users, price tracking, and bookstore integrations. Two scope changes are acknowledged against the approved proposal: the bookstore price check was removed (ADR-004), and Google Books was added as an optional second metadata source so that scans match the exact edition (ADR-006); it uses the official API, needs no account, and the app works without it.
+This document covers the midterm version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and six major components: the Presentation view model, the Service use cases, the Domain model, the book repositories, the book-source adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. The scope for the final is frozen to the four core features in Section~1.1: features 1--3 are built and are being completed and tested; feature 4 (Google Account library sync) is planned for weeks 10--11. Out of scope: sharing between users, price tracking, bookstore integrations, and anything else not listed as a core feature. Three scope changes are acknowledged against the approved proposal: the bookstore price check was removed (ADR-004); Google Books was added as an optional second metadata source so that scans match the exact edition (ADR-006), through its official API, with the app still working without it; and Google Account sign-in with library sync was added as the fourth core feature when the scope was frozen at the midterm check-in.
 
 \subsection{Definitions, Acronyms and Abbreviations}
 
@@ -259,7 +261,7 @@ Figure~\ref{fig:system_architecture} shows the architecture chosen for MyHomeLib
 
 Calls always flow Presentation $\rightarrow$ Service $\rightarrow$ Domain and ports, never backwards. The Data tier depends on the Service ports, not the other way around, so the business rules can be tested with in-memory fakes and the storage technology can change without touching them. A composition root (\texttt{bootstrap.ts}) is the only place that chooses concrete adapters and wires them into the use cases.
 
-Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the web. The architecture can be extended with cloud synchronization or a second user by adding a new repository adapter behind the same port; this is out of scope for this version.
+Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the web. Feature 4, Google Account library sync, is planned to fit this architecture: a new repository adapter behind the same port, with every book already stored per owner, so the use cases and the domain do not change.
 
 %==========================================================================
 \section{System Components}
@@ -377,6 +379,11 @@ export type BookMetadata = BookFacts & {
   coverUrl: string;            // best cover first
   coverCandidates: string[];   // every distinct cover the sources offer
 };
+
+/** The one error a source throws when it can't answer (offline, timeout, 429, bad JSON). */
+export class BookSourceUnavailableError extends Error {
+  constructor(readonly detail: string);
+}
 
 export interface IsbnLookup {
   byIsbn(isbn: string): Promise<BookMetadata>;
@@ -530,11 +537,11 @@ Show the book on TBR / Owned or Wanted
 Figure~\ref{fig:data_model} shows the two tables the app stores on the device. On the web the same data is kept as JSON in browser storage with the same field names.
 
 \begin{itemize}
-    \item \textbf{books}: one row per cataloged title and owner: the edition facts (title, author, publisher, date, pages, series, subjects, description), the chosen cover (a URL or an inline photo), the binding, the shelf, the copy count, the reading status, and the acquisition (\texttt{PURCHASED} or \texttt{GIFTED} with the giver's name). The ISBN is unique, which backs the ``duplicate ISBN adds a copy'' rule.
+    \item \textbf{books}: one row per cataloged title and owner: the edition facts (title, author, publisher, date, pages, series, subjects, description), the chosen cover (a URL or an inline photo), the binding, the shelf, the copy count, the reading status, and the acquisition (\texttt{PURCHASED} or \texttt{GIFTED} with the giver's name). Each owner has at most one row per ISBN (\texttt{UNIQUE (owner\_id, isbn)}), which backs the ``duplicate ISBN adds a copy'' rule without letting one owner's books overwrite another's.
     \item \textbf{isbn\_cache}: one row per looked-up ISBN with the merged metadata and every cover candidate (as a JSON array), so a book is fetched from the network only once. A version marker clears old entries when the lookup format changes.
 \end{itemize}
 
-The schema migrates itself: missing columns are added when the app starts, and rows saved by older builds (for example the former third ``TBR'' shelf, now Owned and unread) are upgraded by \texttt{BookRowMapper}.
+The schema migrates itself: missing columns are added when the app starts, and rows saved by older builds (for example the former third ``TBR'' shelf, now Owned and unread) are upgraded by \texttt{BookRowMapper}. The mapper also repairs damaged rows: a value outside its enumeration falls back to a safe default (an unknown shelf becomes Wanted, never Owned), and a row that no longer names its owner or ISBN is skipped. A browser save that is not readable JSON is kept under a backup key and the app starts with an empty library instead of failing. A database from the first release, where the ISBN was unique across all owners, is rebuilt once, inside a transaction, with the per-owner constraint.
 
 \subsection{RTM}
 
@@ -563,12 +570,14 @@ NFR-2 & Stylesheets are imports; values come from theme tokens & presentation/st
 NFR-3 & Runs in Expo Go (iOS, Android) and on the web without native builds & Expo modules only (ADR-005, ADR-008) & 27 \\ \hline
 NFR-4 & Accessible: WCAG AA contrast, screen-reader labels, reduced motion & Theme tokens, Tappable, Reveal, Labels & 28 \\ \hline
 NFR-5 & The architecture is documented: tier table, C4 and UML diagrams, ADRs & README, docs/adr, this SDD & 1--3 \\ \hline
+FR-14 & Sign in with a Google account; the library syncs and is backed up to that account (planned, weeks 10--11) & Not built yet; owner isolation in every repository is ready for it & 31, 32 \\ \hline
+NFR-6 & Bad input and failures are handled: a mistyped ISBN is refused, an unreachable source times out with a clear message, damaged storage still loads & Isbn, Http, BookSourceUnavailableError, BookRowMapper, JsonBookRepository, SqliteBookRepository & 29--31 \\ \hline
 \end{longtable}
 
 %==========================================================================
 \section{Sprint Planning}
 
-MyHomeLib is an individual project, so every development role below is held by the same developer, with a peer review partner reviewing the work at the midterm and final sessions (October 12 and 19, and November 9 and 16). Work is organized as weekly sprints that follow the course milestones. The \emph{Proposed Timeline} below is the plan at project approval; the \emph{Actual Timeline} records what was built. The sprint dates stayed in the same calendar windows, but the content of two sprints changed. In proposed Sprint 5, the Wanted list was to include a bookstore price check by scraping retailer pages; the instructor asked for scraping to be removed (ADR-004), so actual Sprint 5 concentrated on the acquisition rules for moving books to Owned. In proposed Sprint 6, the plan was polish and testing; testing showed that Open Library alone often returned the wrong cover for a specific printing, so actual Sprint 6 added exact-edition lookup with Google Books (ADR-006), and refactored the code into classes with a view model and a design system (ADR-007, ADR-008) to meet the course's object-oriented requirements. Sprints 7--9 have not started yet and follow the proposed timeline.
+MyHomeLib is an individual project, so every development role below is held by the same developer, with a peer review partner reviewing the work at the midterm and final sessions (October 12 and 19, and November 9 and 16). Work is organized as weekly sprints that follow the course milestones. The \emph{Proposed Timeline} below is the plan at project approval; the \emph{Actual Timeline} records what was built. The sprint dates stayed in the same calendar windows, but the content of two sprints changed. In proposed Sprint 5, the Wanted list was to include a bookstore price check by scraping retailer pages; the instructor asked for scraping to be removed (ADR-004), so actual Sprint 5 concentrated on the acquisition rules for moving books to Owned. In proposed Sprint 6, the plan was polish and testing; testing showed that Open Library alone often returned the wrong cover for a specific printing, so actual Sprint 6 added exact-edition lookup with Google Books (ADR-006), and refactored the code into classes with a view model and a design system (ADR-007, ADR-008) to meet the course's object-oriented requirements. Sprint 7 is in progress: alongside the midterm review it hardened the build against bad input and failures (ADR-010), verified in Section~\ref{sec:sprint7}. The rest of the semester follows the Plan for the Second Half (Section~\ref{sec:plan}), which freezes the scope to the four core features.
 
 \setlist[enumerate]{topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=2pt, leftmargin=1.5em}
 
@@ -1111,8 +1120,9 @@ Grace Hechavarria & Added the Google Books adapter, merged and cached lookups, t
 \end{minipage}
 
 \subsection{Plan for the Second Half}
+\label{sec:plan}
 
-The remaining work is tracked as GitHub issues, one per sprint, each in the title / why / ``done when'' form, and shown on the project board. The midterm check-in action item will be added as its own issue as soon as it is received.
+The scope for the final is frozen to the four core features (Section~1.1): \textbf{nothing new is added until these four are complete and tested}. The second half completes and tests features 1--3, builds and tests feature 4, verifies all four on physical phones, and closes with the final review. This plan supersedes Sprints 7--9 of the Proposed Timeline. The work is tracked as GitHub issues in the title / why / ``done when'' form and shown on the project board.
 
 \medskip
 \noindent
@@ -1120,11 +1130,13 @@ The remaining work is tracked as GitHub issues, one per sprint, each in the titl
 \hline
 \textbf{Weeks} & \textbf{GitHub issue} & \textbf{Done when} \\
 \hline
-8--9 (10/12 -- 10/25) & Address midterm review findings & Every finding from the midterm peer review and the check-in action item is fixed or answered in the issue, and CI is green. \\
+8--9 (10/12 -- 10/25) & Complete and test features 1--3; address midterm findings & Every rule of features 1--3 has a passing test (\texttt{tests/coreFeatures.test.ts} and the unit tests), every midterm peer-review finding and the check-in action item is fixed or answered, and CI is green. \\
 \hline
-10--11 (10/26 -- 11/08) & Verify every flow on a physical phone & Scan, cover photo, gift, move, read toggle, and delete are each walked through in Expo Go on an iPhone and an Android phone, with defects fixed and the results recorded. \\
+10--11 (10/26 -- 11/08) & Google Account library sync (feature 4) & An ADR records the approach; the owner can sign in with a Google account; their library is backed up to the account and restored in a new session or on another device; each account's books stay separate (the \texttt{BookRepository} contract tests pass for the sync adapter); CI is green. \\
 \hline
-12--13 (11/09 -- 11/22) & Final review, demo, and SDD v2.0 & The final peer review is addressed, the demo runs from a clean clone, and this document is updated to its final version. \\
+12 (11/09 -- 11/15) & Verify all four features on a physical phone & Each core feature is walked through in Expo Go on an iPhone and an Android phone, defects are fixed, and the results are recorded. \\
+\hline
+13 (11/16 -- 11/22) & Final review, demo, and SDD v2.0 & The final peer review is addressed, the demo runs from a clean clone, and this document is updated to its final version. \\
 \hline
 \end{tabular}
 
@@ -1136,15 +1148,21 @@ The remaining work is tracked as GitHub issues, one per sprint, each in the titl
 \hline
 A book source is slow or down (Open Library took about 20 seconds per request during testing) & Every lookup is cached on the device after the first time; Google Books answers when Open Library does not; a typed ISBN and a clear ``No book found'' message cover the rest; the demo uses books already cached. \\
 \hline
-The camera, haptics, and SQLite have only been exercised in the web build so far & Weeks 10--11 are reserved for testing on physical iPhone and Android phones in Expo Go, before the final review. \\
+The camera, haptics, and SQLite have only been exercised in the web build so far & Week 12 is reserved for testing all four features on physical iPhone and Android phones in Expo Go, before the final review; SQLite is already tested against a real database in CI. \\
+\hline
+Google sign-in may not work inside Expo Go (Google's native sign-in library needs a custom development build, and Google restricts which redirect addresses it accepts) & The first days of weeks 10--11 are a spike that proves sign-in on both phones before any sync code is written; if Expo Go cannot do it, an ADR records the alternative chosen. \\
+\hline
+Account sync could be read as a second data store, against the one-store course constraint & Confirm with the instructor during weeks 8--9; the design keeps SQLite as the only working store and treats the account copy as a backup behind the same repository port. \\
+\hline
+Sync grows beyond its feature (conflict handling, sharing, several devices at once) & Feature 4 is limited to sign-in, backup, and restore of one owner's library; a later change of the same book wins. Anything more waits until after the final. \\
 \hline
 An Expo or dependency update breaks the app before the demo & Versions are pinned in \texttt{package-lock.json}, CI installs with \texttt{npm ci} on every push, and no SDK upgrade is taken until after the final review. \\
 \hline
 The Google Books key is missing or over quota & The key is optional: without it the app uses Open Library only (ADR-006), and the key is restricted to the Books API. \\
 \hline
-Review findings take longer than planned & Weeks 8--9 hold no new features, only findings, ordered by how much they affect the grade and the user. \\
+Review findings take longer than planned & Weeks 8--9 hold no new features, only findings and tests for features 1--3, ordered by how much they affect the grade and the user. \\
 \hline
-One developer, limited time & Work is split into small issues with weekly commits, and CI and the 88 automated tests catch regressions immediately. \\
+One developer, limited time & Work is split into small issues with weekly commits, and CI and the 145 automated tests catch regressions immediately. \\
 \hline
 \end{tabular}
 
@@ -1267,6 +1285,8 @@ Rationale management records why each design decision was made. In this project 
 008 & Design system: tokens, stylesheet imports, shared UI building blocks & Accepted \\
 009 & Ports and adapters between Service and Data & Accepted \\
 \hline
+010 & Validate input and contain failures at the tier edges & Accepted \\
+\hline
 \end{tabular}
 
 \subsubsection{Issues Addressed}
@@ -1282,7 +1302,7 @@ The first issue was \textbf{portability}: the review partner had to run the app 
     \item \textbf{Keeping screen logic in React hooks}: faster to write, but untestable without rendering and not class-based; replaced by an MVVM view model (ADR-007).
     \item \textbf{A UI component library}: would add dependencies and a generic look; a small token-based design system was built instead (ADR-008).
     \item \textbf{Plain JavaScript instead of TypeScript}: JavaScript is required by React Native, but it has no interfaces, abstract classes, or access modifiers, and it reports type mistakes only at run time. TypeScript was chosen because those features carry the course's object-oriented design straight into the code (the UML diagrams match the classes), the compiler refuses an adapter that does not implement its port, and all four tiers and the tests share one language.
-    \item \textbf{Microservices or a backend server}: rejected; the library is private to one user and must work offline on a phone, so a server would add cost and failure points without benefit. A cloud store could later be added as one more \texttt{BookRepository} adapter.
+    \item \textbf{Microservices or a backend server}: rejected; the library is private to one user and must work offline on a phone, so a server would add cost and failure points without benefit. The planned Google Account sync (feature 4) backs the library up to the owner's own account through one more \texttt{BookRepository} adapter, without a server of the project's own.
 \end{itemize}
 
 \subsubsection{Decisions Made}
@@ -1308,7 +1328,7 @@ The main debate was between keeping the external integrations to the minimum (Op
 
 Verification in software is defined by the IEEE 1012 standard as ``the process of evaluating software to determine whether the products of a given development phase satisfy the conditions imposed at the start of that phase'' (IEEE, 2024).
 
-MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 88 tests in 7 files, including tests that walk the view model through each user flow without any user interface, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
+MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 145 tests in 10 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
 
 \begin{table}[H]
 \centering
@@ -1322,12 +1342,15 @@ bookSources.test.ts & Open Library and Google Books parsing, merging, failures, 
 appModel.test.ts & Every user flow through the view model, no UI & 17 \\
 controller.test.ts & Controller, library view, JSON round trip & 6 \\
 catalog.test.ts & A--Z, author, and series grouping & 3 \\
+persistence.test.ts & BookRowMapper (legacy and damaged rows), the repository contract for memory, JSON and SQLite, owner isolation, schema upgrades & 29 \\
+resilience.test.ts & ISBN check digits and ISBN-10 to ISBN-13 keys, timeouts, error statuses, malformed JSON, the banner shown for each & 17 \\
+coreFeatures.test.ts & Each of the four core features end to end, with the real lookup pipeline on canned JSON & 11 \\
 architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \midrule
-\textbf{Total} & \textbf{Test Suites: 7 passed; Tests: 88 passed} & \textbf{88} \\
+\textbf{Total} & \textbf{Test Suites: 10 passed; Tests: 145 passed} & \textbf{145} \\
 \bottomrule
 \end{tabular}
-\caption{Automated test suite results (\texttt{npm test}, October 10, 2026)}
+\caption{Automated test suite results (\texttt{npm test}, October 18, 2026)}
 \label{tab:tests}
 \end{table}
 
@@ -1446,7 +1469,7 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \textbf{(24)} On a book's detail screen we tap ``Mark read''; the banner reports ``Marked read.'' and the book moves to the Read list. & Verify the read toggle & Fig.~\ref{fig:v_detail} \\
 \textbf{(25)} We tap ``Delete from library''; a confirmation names the book and warns that every copy is removed. ``Keep it'' leaves it in place. & Verify that delete asks first & Fig.~\ref{fig:v_detail} \\
 \textbf{(26)} The architecture tests read every source file: tiers depend only downward, no component defines a stylesheet or inline style, and only \texttt{App.tsx} reaches the composition root. All 6 pass. & Verify the tier and stylesheet rules & Table~\ref{tab:tests} \\
-\textbf{(27)} We start the project with \texttt{npm start} and open it in Expo Go and in a web browser; no native build tools are required. & Verify the platform constraint & Fig.~\ref{fig:gui_tbr} \\
+\textbf{(27)} We start the project with \texttt{npx expo start} and open it in Expo Go on a phone; no native build tools are required. In a web browser the app also runs, with the camera replaced by a message to use the phone and a typed ISBN. & Verify the platform constraint & Fig.~\ref{fig:gui_tbr} \\
 \textbf{(28)} Every text and background color pair was measured with the WCAG formula (lowest: 4.63:1, the danger button); cards announce ``title, by author, \ldots, read'' to screen readers; list entrances stop when Reduce Motion is on. & Verify accessibility & -- \\
 \bottomrule
 \end{longtable}
@@ -1478,6 +1501,22 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
     \caption{Marked read (left); delete confirmation (center); an unknown ISBN (right)}
     \label{fig:v_detail}
 \end{figure}
+
+\newpage
+\subsection{Sprint 7 -- Hardening: Bad Input and Failures}
+\label{sec:sprint7}
+
+\begin{longtable}{L{0.4\linewidth} L{0.36\linewidth} L{0.14\linewidth}}
+\toprule
+\textbf{Process} & \textbf{Verification} & \textbf{Figure} \\
+\midrule
+\endhead
+\textbf{(29)} We type ISBNs with a wrong check digit, the wrong length, a non-book barcode, and nothing at all. Each is refused with ``\ldots{} is not a valid ISBN. Check the number and try again.'' and no book source is asked; hyphens, spaces, an ``ISBN'' prefix and an ISBN-10 ending in X are accepted. & Verify ISBN validation before any network call & Table~\ref{tab:tests} \\
+\textbf{(30)} Resilience tests make a source time out, answer 404, 429 and 500, send broken or non-object JSON, and go offline. Each becomes one \texttt{BookSourceUnavailableError}; with Google rate-limited, Open Library still answers; with every source down the banner reads ``Couldn't reach the book sources. Check your connection and try again.'' in red, and nothing is added. The Google key never appears in an error. & Verify graceful failure of the book sources & Table~\ref{tab:tests} \\
+\textbf{(31)} Persistence tests round-trip every field through JSON and a real SQLite database, store a missing acquisition as \texttt{NULL}, load a first-release database (TBR shelf, \texttt{collection} column, ISBN unique across owners), skip damaged rows, back up an unreadable save, keep two owners' copies of one ISBN apart, and store SQL in a title literally (all values are bound parameters). The same contract runs against every adapter, and a future sync adapter must pass it too. & Verify storage integrity, migration, and owner isolation & Table~\ref{tab:tests} \\
+\textbf{(32)} The core-feature tests drive each feature through the controller, use cases, domain and a repository: an ISBN-10 and its ISBN-13 find the same merged edition; the picked cover or photo is saved; Owned needs a purchase or a named gift; a second scan of the same book, written either way, adds a copy; TBR, Wanted and the three catalog groupings list the right books; read, move, cover and delete work from a book's page; and two Google-style accounts sharing one store never see each other's books. & Verify the four core features end to end & Table~\ref{tab:tests} \\
+\bottomrule
+\end{longtable}
 
 %==========================================================================
 \section{References}

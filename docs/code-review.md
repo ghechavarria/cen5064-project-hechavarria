@@ -2,7 +2,7 @@
 
 Scan a book's ISBN, get the **exact edition** (publisher, binding, cover) from Open Library and Google Books, and file it as **Owned** or **Wanted**. TBR is your Owned books split into unread and read. The rules live in the domain: a duplicate ISBN adds a copy; every Owned book must be Purchased or Gifted; a gift needs the giver's name.
 
-Decisions and their reasons: [`docs/adr/`](adr/). Full C4/UML set: [`README.md`](../README.md). The Software Design Document (all diagrams, requirements traceability, sprints, and verification with screenshots): [`docs/design/main.pdf`](design/main.pdf); its diagram sources are in `docs/design/diagrams/`.
+Decisions and their reasons: [`docs/adr/`](adr/). Full C4/UML set: [`README.md`](../README.md). The Software Design Document (all diagrams, requirements traceability, sprints, and verification with screenshots): [`docs/design/DesignDocument_Hechavarria.pdf`](design/DesignDocument_Hechavarria.pdf); its diagram sources are in `docs/design/diagrams/`.
 
 ---
 
@@ -280,9 +280,13 @@ classDiagram
 | Why two book sources? | Open Library is free but often has the wrong cover for a printing; Google often has the right one (ADR-006). |
 | Why ask which cover is yours? | One ISBN can carry different cover designs (print-on-demand reprints), so only you can confirm. |
 | Why is the view model separate from the controller? | The model owns the screen (popups, flash, busy); the controller adapts intents to use cases. Each is tested alone. |
-| What isn't handled? | One owner (`"local"`); printing number (reprints share an ISBN); SQLite and the camera are checked by hand on a phone. |
+| What happens with a typo in the ISBN? | `Isbn.parse` checks the check digit first and throws `InvalidIsbnError` ("… is not a valid ISBN"), so nothing goes to the network (ADR-010). |
+| What if the book sources are down or slow? | `Http` gives up after 15 s, and every network failure (offline, 429, 500, broken JSON) becomes one `BookSourceUnavailableError`. One source failing is fine; all failing shows a red "Couldn't reach the book sources" banner. |
+| What if the saved library is damaged? | `BookRowMapper.withDefaults` repairs each row (unknown values fall back to safe defaults), rows with no owner or ISBN are skipped, and an unreadable browser save is backed up instead of crashing the app. |
+| Can two owners have the same book? | Yes: every repository keys rows by owner and ISBN together, and SQLite enforces `UNIQUE (owner_id, isbn)`. |
+| What isn't built yet? | Core feature 4, Google Account library sync (planned for weeks 10–11); until then the app uses one owner (`"local"`). Also not handled: the printing number (reprints share an ISBN). The camera is checked by hand on a phone. |
 
-`npm test` runs **88 tests**, one file per tier, plus the architecture rules.
+`npm test` runs **145 tests** in 10 files: one or more per tier, the repository contract against memory, JSON and a real SQLite database (Node's built-in `node:sqlite`), the failure cases, one file that drives each core feature end to end (`coreFeatures.test.ts`), and the architecture rules.
 
 
 ---
@@ -319,6 +323,6 @@ classDiagram
 | Question | Answer |
 |---|---|
 | Why SQLite? | The course allows one data store, and SQLite is built into the phone and Expo Go: no server, works offline (ADR-002). |
-| Why not a backend server? | Nothing needs to be shared between users, so a server would only add cost and failure points. A cloud store could be added later as one more `BookRepository`. |
+| Why not a backend server? | Nothing needs to be shared between users, so a server would only add cost and failure points. The planned Google Account sync (core feature 4) backs the library up to the owner's own account through one more `BookRepository` adapter, with no server of our own. |
 | Why classes in the view model but functions for components? | React components are functions by design (class components are legacy, and hooks need functions). They hold no logic, so nothing is lost. |
 | Why Google Books if the course limited integrations? | Open Library alone often showed the wrong cover for a printing. Google is official, optional (free key), and plugged in behind the same port (ADR-006). |

@@ -10,31 +10,64 @@
 MyHomeLib is a cross-platform Expo Go app (React Native) for bibliophiles who catalog a personal library. It runs on iPhone and Android through the free Expo Go client — not an App Store / Play binary, and not an Xcode or Android Studio project — so a partner can clone the repo and run it without a Mac. Conference fallback: Expo web in a browser (webcam ISBN scan). Core features: (1) ISBN camera scan (typed ISBN fallback) that looks up metadata from Open Library (the only external integration; no API key), including series, description, year, pages, and subjects, (2) Owned vs Wanted, with TBR as the Owned unread/read list and an Owned catalog (A–Z / author / series), and (3) Domain rules: scanning an ISBN already in the library increments a copy count instead of adding a second row; a Wanted book cannot move to Owned unless it is marked purchased or gifted (gifted requires the giver’s name). There is no bookstore web scraping.
 ```
 
-**Scope changes since approval:** the bookstore price check was removed ([ADR-004](docs/adr/adr-004.md)), and Google Books was added as an optional second book source, through its official API, so scans match the exact edition ([ADR-006](docs/adr/adr-006.md)). The app still runs with Open Library alone.
+**Scope changes since approval:** the bookstore price check was removed ([ADR-004](docs/adr/adr-004.md)), and Google Books was added as an optional second book source, through its official API, so scans match the exact edition ([ADR-006](docs/adr/adr-006.md)). The app still runs with Open Library alone. At the midterm check-in the scope was frozen, adding Google Account library sync as core feature 4 (below).
+
+## Scope for the final
+
+Nothing new will be added until these 4 core features are complete and tested.
+
+1. **Scan a book:** Scan or type an ISBN to look up the exact edition from Open Library and Google Books, then pick the cover that matches your copy or photograph it.
+2. **Shelve it, with rules enforced:** File the book as Owned or Wanted, and as read or unread. An Owned book must be marked purchased or gifted, and a gift needs the giver’s name. Scanning a book you already have adds a copy instead of a duplicate.
+3. **Browse and manage your library:** See TBR (unread and read), the Owned catalog grouped A–Z, by author or by series, and the Wanted list. From a book’s page you can mark it read, move it, change its cover, or delete it.
+4. **Google Account library sync:** Sign in with a Google account to keep your library synced and backed up to your account across sessions/devices.
+
+Features 1–3 are built; each one's main rule is tested end to end in [`tests/coreFeatures.test.ts`](tests/coreFeatures.test.ts). Feature 4 is not built yet: it is planned for weeks 10–11 (see the plan for the second half in the [design document](docs/design/DesignDocument_Hechavarria.pdf)). The storage it will plug into already keeps every book under its owner, and that rule is tested.
 
 ## How to run
 
-Requires Node.js LTS. No Python, no Xcode, no Android Studio, no paid developer account.
+MyHomeLib is a mobile app: it runs on your iPhone or Android phone inside the free Expo Go app. On the computer you need [Node.js](https://nodejs.org/) (LTS) and [Git](https://git-scm.com/). No Xcode, no Android Studio, no paid developer account.
 
-```
-npm install
-npm start
-```
+1. **Download Expo Go** on your phone, free from the App Store (iPhone) or Google Play (Android).
+2. **Clone the repository** and open the project folder:
+   ```
+   git clone https://github.com/ghechavarria/cen5064-project-hechavarria.git
+   cd cen5064-project-hechavarria
+   ```
+3. **Add a Google Books API key** (free; lets scans match the exact edition and its cover). Create a file named `.env` in the project folder (or copy `.env.example` to `.env`) containing:
+   ```
+   EXPO_PUBLIC_GOOGLE_BOOKS_KEY=your-key-here
+   ```
+   To get the key:
+   - Go to the [Google Cloud console](https://console.cloud.google.com/) and sign in with a Google account.
+   - Create a project: the project picker at the top → **New project** → any name → **Create**.
+   - Enable the API: **APIs & Services** → **Library** → search **Books API** → **Enable**.
+   - Create the key: **APIs & Services** → **Credentials** → **Create credentials** → **API key**, then copy it into `.env`.
+   - Recommended: edit the key → **API restrictions** → **Restrict key** → choose **Books API** → **Save**.
 
-Optional, for exact covers: copy `.env.example` to `.env` and add a free Google Books API key (Google Cloud console → enable "Books API" → create an API key). Without it the app uses Open Library only ([ADR-006](docs/adr/adr-006.md)).
+   The key is optional: without it the app uses Open Library only ([ADR-006](docs/adr/adr-006.md)). The `.env` file is ignored by Git, so the key is never committed.
+4. **Install the dependencies:**
+   ```
+   npm install
+   ```
+5. **Start the development server:**
+   ```
+   npx expo start
+   ```
+6. **Open the app on your phone:** with the phone on the same Wi-Fi as the computer, open Expo Go and tap the local development server listed under **Development servers**. If it isn't listed, scan the QR code printed in the terminal (iPhone: with the Camera app; Android: with **Scan QR code** in Expo Go).
 
-- Phone: install free **Expo Go**, then scan the QR code (same Wi-Fi, or use the tunnel option Expo prints). Open **Scan** and allow the camera; point it at the ISBN barcode on the book.
-- Browser: press `w` in the terminal after `npm start` (or run `npm run web`) and the app opens at http://localhost:8081. Scan uses the webcam; with no camera, type the ISBN (for example `9780743273565`).
+Then open **Scan**, allow the camera, and point it at the ISBN barcode on a book.
 
-Tests: `npm test` (88 tests: every tier, every user flow through the view model, and the architecture rules).
+**Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos.
+
+Tests: `npm test` (145 tests: each core feature end to end, every tier, every user flow through the view model, SQLite and JSON persistence, bad input and network failures, and the architecture rules).
 
 ## Documentation
 
 | Document | What it's for |
 |---|---|
-| [`docs/design/main.pdf`](docs/design/main.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. A Word copy ([`MyHomeLib-SDD-v1.0.docx`](docs/design/MyHomeLib-SDD-v1.0.docx)), the LaTeX source, and the diagram sources sit beside it. |
+| [`docs/design/DesignDocument_Hechavarria.pdf`](docs/design/DesignDocument_Hechavarria.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. A Word copy ([`DesignDocument_Hechavarria.docx`](docs/design/DesignDocument_Hechavarria.docx)), the LaTeX source (`DesignDocument_Hechavarria.tex`), and the diagram sources sit beside it. |
 | [`docs/code-review.md`](docs/code-review.md) | Study guide: what calls what in plain words, where each class lives and why, and answers to "why this architecture, why Expo Go, why TypeScript". |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–009): one page per decision, with its context and consequences. |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–010): one page per decision, with its context and consequences. |
 | This README | How to run, the tier table, and the C4 and UML diagrams. |
 
 ## Architecture
@@ -43,10 +76,10 @@ Tests: `npm test` (88 tests: every tier, every user flow through the view model,
 
 | Tier | Responsibilities in THIS system |
 |------|--------------------------------|
-| Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan**, dark forest theme. TBR is the Owned reading list (Unread / Read). Owned is the full catalog, grouped A–Z, by Author, or by Series, with an A–Z letter rail in every grouping. Wanted is the wish list. Scan uses the camera or webcam, with a typed-ISBN fallback: confirm and **pick the cover that matches your copy** (or photograph it) → hardcover/paperback (only if no source knew) → Owned/Wanted → purchased/gifted (Owned only) → read/unread; a duplicate ISBN skips straight to adding a copy. Detail: edition facts and binding, read/unread, photograph my cover, shelf moves, delete. **Built MVVM:** `LibraryAppModel` (a class extending `Observable`) holds all screen state and flows; `LibraryController` is its bridge to the use cases; the device camera sits behind the `CoverCamera` interface. React components in `presentation/components/` only render, with every stylesheet in `presentation/styles/`. **Design system:** one theme file of tokens (colors, spacing, type roles in the Outfit font), shared building blocks (`Tappable` for every tap, `TextField`, `BookCover`, `CoverBackdrop`, `Logo`), and Expo Go's own modules for images, gradients, fonts and haptics ([ADR-008](docs/adr/adr-008.md)). Never touches a repository. |
+| Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan**, dark forest theme. TBR is the Owned reading list (Unread / Read). Owned is the full catalog, grouped A–Z, by Author, or by Series, with an A–Z letter rail in every grouping. Wanted is the wish list. Scan uses the phone camera, with a typed-ISBN fallback: confirm and **pick the cover that matches your copy** (or photograph it) → hardcover/paperback (only if no source knew) → Owned/Wanted → purchased/gifted (Owned only) → read/unread; a duplicate ISBN skips straight to adding a copy. Detail: edition facts and binding, read/unread, photograph my cover, shelf moves, delete. **Built MVVM:** `LibraryAppModel` (a class extending `Observable`) holds all screen state and flows; `LibraryController` is its bridge to the use cases; the device camera sits behind the `CoverCamera` interface. React components in `presentation/components/` only render, with every stylesheet in `presentation/styles/`. **Design system:** one theme file of tokens (colors, spacing, type roles in the Outfit font), shared building blocks (`Tappable` for every tap, `TextField`, `BookCover`, `CoverBackdrop`, `Logo`), and Expo Go's own modules for images, gradients, fonts and haptics ([ADR-008](docs/adr/adr-008.md)). Never touches a repository. |
 | Service | Orchestration, one class per use case: `LookupIsbnUseCase` (no save), `ScanBookUseCase`, `LoadLibraryUseCase`, `MoveBookToShelfUseCase`, `SetReadingStatusUseCase`, `ChangeCoverUseCase`, `DeleteBookUseCase`, `FillMissingFactsUseCase`. All except the lookup extend the abstract `LibraryUseCase` (shared load → change → save); `ScanBookUseCase` and `FillMissingFactsUseCase` go through `LibraryLookupUseCase`, which adds the book-source lookup. The `UseCases` class builds them all from the two ports. Service never contains SQL, `fetch`, or React. |
 | Domain | `Book` (isbn, title, author, cover, publisher, **format** HARDCOVER/PAPERBACK/UNKNOWN, shelf OWNED/WANTED, readingStatus UNREAD/READ, series, description, published, pageCount, subjects, copyCount, acquisition). TBR is a view of Owned unread/read, not a third exclusive shelf. Every Owned book must be purchased or gifted, whether it is scanned straight into Owned (`PersonalLibrary.addBook`) or moved from Wanted (`Book.moveTo`). |
-| Data | Persistence and the two book sources. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner's books plus a lookup cache; on Expo web / tests, JSON / memory. `BookRowMapper` is the only row ↔ Book translation. Book sources: `OpenLibraryIsbnLookup` (no key; edition-first, so cover, publisher, date, pages and binding come from the exact ISBN's record) and `GoogleBooksIsbnLookup` (free key; only accepts the volume listing the scanned ISBN). `MergedIsbnLookup` asks both and keeps every distinct cover as a candidate; `CachingIsbnLookup` caches the result. All HTTP goes through the `Http` class. No bookstore scraping. |
+| Data | Persistence and the two book sources. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner's books plus a lookup cache; on Expo web / tests, JSON / memory. `BookRowMapper` is the only row ↔ Book translation, and repairs rows saved by older builds or damaged on disk. Rows are unique per owner and ISBN. Book sources: `OpenLibraryIsbnLookup` (no key; edition-first, so cover, publisher, date, pages and binding come from the exact ISBN's record) and `GoogleBooksIsbnLookup` (free key; only accepts the volume listing the scanned ISBN). `MergedIsbnLookup` asks both and keeps every distinct cover as a candidate; `CachingIsbnLookup` caches the result. All HTTP goes through the `Http` class, which times out after 15 s and reports any failure as one `BookSourceUnavailableError`. No bookstore scraping. |
 
 ### C4 Level 1 — Context
 
@@ -278,6 +311,8 @@ sequenceDiagram
     participant R as BookRepository
     U->>UI: scan ISBN barcode
     UI->>S: LookupIsbnUseCase.execute(isbn)
+    S->>S: Isbn.parse(isbn)
+    Note right of S: a typo stops here (InvalidIsbnError), before any network call
     S->>L: byIsbn(isbn)
     Note right of L: Google Books + Open Library, merged, cached
     L-->>S: BookMetadata (cover candidates, binding)
@@ -315,6 +350,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Plain-English walkthrough and the "w
 | [007](docs/adr/adr-007.md) | MVVM presentation: an observable view model, thin React views | accepted |
 | [008](docs/adr/adr-008.md) | Design system: theme tokens, one stylesheet per component, shared UI building blocks | accepted |
 | [009](docs/adr/adr-009.md) | Ports and adapters between Service and Data | accepted |
+| [010](docs/adr/adr-010.md) | Validate input and contain failures at the tier edges | accepted |
 
 The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`docs/design/`](docs/design/).
 
@@ -327,3 +363,4 @@ The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`doc
 - Week 5 (Sep 21): Initial Architecture/Logic and Design Creation #3 Issue created. Changes pushed to a PR for review
 - Week 6 (Sep 28): Enforce acquisition requirements when moving Wanted books to Owned #5 issue created, fixed and tested
 - Week 7 (Oct 05): Exact-edition lookup (Google Books + Open Library merged, cover picker, own cover photo, binding question); OOP refactor (classes, MVVM, stylesheet imports); UI design system; Software Design Document v1.0; CI added. Honest note: this week's work was built locally and pushed as one large PR (#8, closes #7) instead of in daily commits. From week 8 on, each issue gets its own branch and smaller commits.
+- Week 8 (Oct 12): Midterm check-in. Scope for the final frozen to 4 core features (adds Google Account library sync, planned for weeks 10–11). Hardening: ISBN check-digit validation with one ISBN-13 key per book, a timeout and one clear error for unreachable book sources, recovery from damaged storage, books unique per owner (ADR-010). Mobile-first run instructions. 145 tests, including one end-to-end test file per core feature.
