@@ -1,10 +1,10 @@
 /**
  * Data: MemoryBookRepository (tests, and the store behind JSON) and
  * JsonBookRepository (Expo web: browser localStorage). Both implement the
- * BookRepository port; row ↔ Book conversion is BookRowMapper's job.
+ * BookRepository and IsbnCache ports; row ↔ Book conversion is BookRowMapper's job.
  */
 import { Book, PersonalLibrary } from "../domain";
-import { BookMetadata, BookRepository } from "../service/ports";
+import { BookMetadata, BookRepository, IsbnCache } from "../service/ports";
 import { BookRow, BookRowMapper, StoredRow } from "./bookRowMapper";
 
 /** Everything the memory store holds; JSON saves exactly this. */
@@ -14,7 +14,7 @@ type Snapshot = { books: BookRow[]; isbnCache: Record<string, BookMetadata> };
 type StoredSnapshot = { books?: StoredRow[]; isbnCache?: Snapshot["isbnCache"] };
 
 /** In-memory store: rows in an array, ISBN cache in a map. */
-export class MemoryBookRepository implements BookRepository {
+export class MemoryBookRepository implements BookRepository, IsbnCache {
   private books: BookRow[] = [];
   private isbnCache: Record<string, BookMetadata> = {};
 
@@ -101,7 +101,7 @@ const CACHE_PARSER_VERSION = 4;
  * localStorage store. Composition: it wraps a MemoryBookRepository, loads it
  * once from storage (hydrate) and writes it back after every change (persist).
  */
-export class JsonBookRepository implements BookRepository {
+export class JsonBookRepository implements BookRepository, IsbnCache {
   private readonly memory = new MemoryBookRepository();
   private loaded = false;
 

@@ -1,5 +1,5 @@
 classDiagram
-    direction LR
+    direction TB
     class BookRepository {
         <<interface>>
         +loadLibrary(ownerId) PersonalLibrary
@@ -18,10 +18,12 @@ classDiagram
         +isUsable(row)$ boolean
         +coverList(stored)$ String[]
     }
-    BookRepository --|> IsbnCache
     SqliteBookRepository ..|> BookRepository
     MemoryBookRepository ..|> BookRepository
     JsonBookRepository ..|> BookRepository
+    SqliteBookRepository ..|> IsbnCache
+    MemoryBookRepository ..|> IsbnCache
+    JsonBookRepository ..|> IsbnCache
     JsonBookRepository *-- MemoryBookRepository
     SqliteBookRepository --> BookRowMapper
     MemoryBookRepository --> BookRowMapper

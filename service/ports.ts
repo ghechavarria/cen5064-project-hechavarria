@@ -32,13 +32,19 @@ export interface IsbnLookup {
   byIsbn(isbn: string): Promise<BookMetadata>;
 }
 
-/** The ISBN metadata cache, split out so CachingIsbnLookup depends only on what it uses. */
+/** The ISBN metadata cache. Only CachingIsbnLookup uses it. */
 export interface IsbnCache {
   cachedIsbn(isbn: string): Promise<BookMetadata | null>;
   cacheIsbn(metadata: BookMetadata): Promise<void>;
 }
 
-export interface BookRepository extends IsbnCache {
+/**
+ * Where an owner's library is stored. Only what the use cases call: the ISBN
+ * cache is a separate port (Interface Segregation), so a store that has no
+ * reason to cache lookups, such as the planned Google Account sync, need not
+ * implement it. The local stores implement both.
+ */
+export interface BookRepository {
   loadLibrary(ownerId: string): Promise<PersonalLibrary>;
   save(ownerId: string, book: Book): Promise<Book>;
   delete(ownerId: string, isbn: string): Promise<void>;

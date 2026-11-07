@@ -10,17 +10,17 @@ import { GoogleBooksIsbnLookup } from "./data/googleBooks";
 import { CachingIsbnLookup, MergedIsbnLookup } from "./data/isbnLookup";
 import { OpenLibraryIsbnLookup } from "./data/openLibrary";
 import { UseCases } from "./service";
-import { BookRepository, IsbnLookup } from "./service/ports";
+import { BookRepository, IsbnCache, IsbnLookup } from "./service/ports";
+
+/** The device store: it keeps the library and caches lookups, two separate ports. */
+type LocalStore = BookRepository & IsbnCache;
 
 export class CompositionRoot {
   static async openUseCases(): Promise<UseCases> {
-    const repository = await CompositionRoot.openRepository();
-    // Decorators: the sources are merged, then cached in the same repository.
-    const lookup = new CachingIsbnLookup(
-      new MergedIsbnLookup(CompositionRoot.bookSources()),
-      repository,
-    );
-    return new UseCases(repository, lookup);
+    const store = await CompositionRoot.openStore();
+    // Decorators: the sources are merged, then cached in the device store.
+    const lookup = new CachingIsbnLookup(new MergedIsbnLookup(CompositionRoot.bookSources()), store);
+    return new UseCases(store, lookup);
   }
 
   // Best source first. Google Books joins only when a key is configured
@@ -32,19 +32,19 @@ export class CompositionRoot {
   }
 
   // Phones use SQLite (imported lazily so web bundles never load expo-sqlite).
-  private static async openRepository(): Promise<BookRepository> {
+  private static async openStore(): Promise<LocalStore> {
     if (Platform.OS === "web") {
-      return CompositionRoot.browserRepository();
+      return CompositionRoot.browserStore();
     }
     try {
       return await (await import("./data/sqliteRepository")).SqliteBookRepository.open();
     } catch {
-      return CompositionRoot.browserRepository();
+      return CompositionRoot.browserStore();
     }
   }
 
   // Browser localStorage when there is one; otherwise memory only.
-  private static browserRepository(): BookRepository {
+  private static browserStore(): LocalStore {
     return typeof globalThis.localStorage !== "undefined"
       ? new JsonBookRepository(globalThis.localStorage)
       : new MemoryBookRepository();

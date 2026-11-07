@@ -9,7 +9,7 @@
 import { JsonBookRepository, MemoryBookRepository } from "../data/bookRepository";
 import { BookRow, BookRowMapper, StoredRow } from "../data/bookRowMapper";
 import { Acquisition, Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../domain";
-import { BookRepository } from "../service/ports";
+import { BookRepository, IsbnCache } from "../service/ports";
 import { FOX } from "./fixtures";
 
 const FULL_BOOK = () =>
@@ -229,20 +229,22 @@ const freshDatabase = () => {
 };
 const openSqlite = async () => (await import("../data/sqliteRepository")).SqliteBookRepository.open();
 
-// --- BookRepository contract ---
-// Every storage adapter must pass these. They are also the contract for the
-// planned Google Account sync (core feature 4): its adapter implements the same
-// BookRepository port, so it joins this list and must keep each account's books apart.
+// --- Port contracts ---
+// Every device store implements two ports and must pass both contracts.
+// BookRepository is also the contract for the planned Google Account sync
+// (core feature 4): its adapter joins that list only, because caching ISBN
+// lookups is no part of an account backup (the two ports are kept separate).
 
-const adapters: [name: string, open: () => Promise<BookRepository>][] = [
+type LocalStore = BookRepository & IsbnCache;
+const localStores: [name: string, open: () => Promise<LocalStore>][] = [
   ["memory", async () => new MemoryBookRepository()],
   ["JSON (browser storage)", async () => new JsonBookRepository(new FakeStorage())],
   ...(nodeSqlite
-    ? [["SQLite", async () => (freshDatabase(), openSqlite())] as [string, () => Promise<BookRepository>]]
+    ? [["SQLite", async () => (freshDatabase(), openSqlite())] as [string, () => Promise<LocalStore>]]
     : []),
 ];
 
-describe.each(adapters)("BookRepository contract: %s", (_name, open) => {
+describe.each(localStores)("BookRepository contract: %s", (_name, open: () => Promise<BookRepository>) => {
   test("saves and reloads every field of a book", async () => {
     const repository = await open();
     await repository.save("local", FULL_BOOK());
@@ -274,12 +276,14 @@ describe.each(adapters)("BookRepository contract: %s", (_name, open) => {
     expect((await repository.loadLibrary("alice")).books).toHaveLength(1);
     expect((await repository.loadLibrary("")).books).toHaveLength(0); // no owner, no books
   });
+});
 
+describe.each(localStores)("IsbnCache contract: %s", (_name, open: () => Promise<IsbnCache>) => {
   test("caches looked-up metadata by ISBN", async () => {
-    const repository = await open();
-    expect(await repository.cachedIsbn(FOX.isbn)).toBeNull();
-    await repository.cacheIsbn(FOX);
-    expect(await repository.cachedIsbn(FOX.isbn)).toEqual(FOX);
+    const cache = await open();
+    expect(await cache.cachedIsbn(FOX.isbn)).toBeNull();
+    await cache.cacheIsbn(FOX);
+    expect(await cache.cachedIsbn(FOX.isbn)).toEqual(FOX);
   });
 });
 

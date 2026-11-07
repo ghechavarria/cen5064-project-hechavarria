@@ -59,7 +59,7 @@ Then open **Scan**, allow the camera, and point it at the ISBN barcode on a book
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos.
 
-Tests: `npm test` (145 tests: each core feature end to end, every tier, every user flow through the view model, SQLite and JSON persistence, bad input and network failures, and the architecture rules).
+Tests: `npm test` (146 tests: each core feature end to end, every tier, every user flow through the view model, SQLite and JSON persistence, bad input and network failures, and the architecture rules).
 
 ## Documentation
 
@@ -254,7 +254,9 @@ classDiagram
         <<interface>>
         +byIsbn(isbn) BookMetadata
     }
-    BookRepository --|> IsbnCache
+    MemoryBookRepository ..|> IsbnCache
+    JsonBookRepository ..|> IsbnCache
+    SqliteBookRepository ..|> IsbnCache
     LibraryUseCase --> BookRepository : uses
     LibraryLookupUseCase --> IsbnLookup : uses
     MemoryBookRepository ..|> BookRepository

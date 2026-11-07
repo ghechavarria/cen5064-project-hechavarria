@@ -35,7 +35,9 @@ classDiagram
         <<interface>>
         +byIsbn(isbn) BookMetadata
     }
-    BookRepository --|> IsbnCache
+    MemoryBookRepository ..|> IsbnCache
+    JsonBookRepository ..|> IsbnCache
+    SqliteBookRepository ..|> IsbnCache
     LibraryUseCase --> BookRepository : uses
     LibraryLookupUseCase --> IsbnLookup : uses
     MemoryBookRepository ..|> BookRepository
