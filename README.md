@@ -19,7 +19,7 @@ Nothing new will be added until these 4 core features are complete and tested.
 1. **Scan a book:** Scan or type an ISBN to look up the exact edition from Open Library and Google Books, then pick the cover that matches your copy or photograph it.
 2. **Shelve it, with rules enforced:** File the book as Owned or Wanted, and as read or unread. An Owned book must be marked purchased or gifted, and a gift needs the giver’s name. Scanning a book you already have adds a copy instead of a duplicate.
 3. **Browse and manage your library:** See TBR (unread and read), the Owned catalog grouped A–Z, by author or by series, and the Wanted list. From a book’s page you can mark it read, move it, change its cover, or delete it.
-4. **Account sign-in and library sync:** Create an account with your email and a password to keep your library backed up and in sync on all your phones. The phone's copy always works offline; the latest change to a book wins, and a book deleted on one phone is deleted on the others.
+4. **Account sign-in and library sync:** Sign in with your email and a password (required to see or add books) to keep your library backed up and in sync on all your phones, automatically. The phone's copy always works offline; the latest change to a book wins, and a book deleted on one phone is deleted on the others.
 
 All 4 are built. Features 1–3 are tested end to end in [`tests/coreFeatures.test.ts`](tests/coreFeatures.test.ts); feature 4 in [`tests/sync.test.ts`](tests/sync.test.ts), [`tests/accounts.test.ts`](tests/accounts.test.ts) and [`tests/accountModel.test.ts`](tests/accountModel.test.ts), with no network needed.
 
@@ -55,9 +55,9 @@ MyHomeLib is a mobile app: it runs on your iPhone or Android phone inside the fr
    ```
 6. **Open the app on your phone:** with the phone on the same Wi-Fi as the computer, open Expo Go and tap the local development server listed under **Development servers**. If it isn't listed, scan the QR code printed in the terminal (iPhone: with the Camera app; Android: with **Scan QR code** in Expo Go).
 
-Then open **Scan**, allow the camera, and point it at the ISBN barcode on a book.
+Then sign in (below), open **Scan**, allow the camera, and point it at the ISBN barcode on a book.
 
-**Accounts (no setup needed):** open the **Account** tab → **Create an account**, and enter your email and a password of at least 8 characters. You are signed in straight away, and the books already on the phone move into your account. Sign in with the same email and password on a second phone and the same library appears there; a change on one phone reaches the other when it syncs (after each change, on sign-in, at start-up, or with **Sync now**). The app connects to the shared MyHomeLib Supabase project built into the code, so there are no keys to add. To use your own Supabase project instead, see [ADR-012](docs/adr/adr-012.md) and `.env.example`.
+**Sign in first (no setup needed):** the library is kept in your account, so the shelves stay empty and scanning is off until you sign in. Open the **Account** tab → **Create an account**, and enter your email and a password of at least 8 characters; you are signed in straight away. Sign in with the same email and password on a second phone and the same library appears there. Syncing is automatic: a change on one phone shows up on the other within moments (and whenever the app comes back on screen), with **Sync now** for a manual check. The app connects to the shared MyHomeLib Supabase project built into the code, so there are no keys to add. To use your own Supabase project instead, see [ADR-012](docs/adr/adr-012.md) and `.env.example`.
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos. Accounts and sync work in the browser too.
 

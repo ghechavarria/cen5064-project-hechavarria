@@ -121,11 +121,22 @@ export class LibraryAppModel extends Observable<AppState> {
     return screen === "main" ? TAB_HEADINGS[tab] : this.selected?.title ?? "Book";
   }
 
+  /**
+   * Accounts are wired in and nobody is signed in: the shelves stay empty and
+   * nothing can be scanned until someone signs in on the Account tab.
+   */
+  get locked(): boolean {
+    return this.account !== null && this.account.getState().account === null;
+  }
+
   /** The line under the heading (counts, or the scan hint). */
   get hint(): string | null {
     const { screen, tab, view, reading } = this.getState();
     if (screen !== "main") {
       return null;
+    }
+    if (this.locked && tab !== "account") {
+      return "Sign in on the Account tab to use your library.";
     }
     const hints: Record<MenuTab, string> = {
       tbr: reading === ReadingStatus.READ ? "Owned books you have finished." : "Owned books waiting to be read.",
@@ -145,7 +156,7 @@ export class LibraryAppModel extends Observable<AppState> {
   /** The camera only reads barcodes when nothing else is going on. */
   get cameraListening(): boolean {
     const { busy, prompt } = this.getState();
-    return !busy && prompt === null;
+    return !busy && prompt === null && !this.locked;
   }
 
   /** What fills the screen: one of the four tabs, or a book's detail. */
@@ -193,10 +204,12 @@ export class LibraryAppModel extends Observable<AppState> {
       this.account.watchOwner((ownerId) => void this.switchOwner(ownerId));
       this.account.watchLibrary(() => void this.reload());
     }
-    this.setState({ ready: true, view: await controller.view(), busy: true });
+    this.setState({ ready: true, view: await this.viewOf(controller), busy: true });
     try {
-      await controller.fillMissingFacts();
-      this.setState({ view: await controller.view() });
+      if (!this.locked) {
+        await controller.fillMissingFacts();
+        this.setState({ view: await this.viewOf(controller) });
+      }
     } catch {
       /* backfill is best effort */
     } finally {
@@ -253,6 +266,10 @@ export class LibraryAppModel extends Observable<AppState> {
   // → shelf → (Owned: purchased/gifted) → read/unread → save
 
   scan(code: string = this.getState().isbnDraft): Promise<void> {
+    if (this.locked) {
+      this.flash("Sign in on the Account tab to add books.");
+      return Promise.resolve();
+    }
     return this.run(async (library) => {
       this.setState({ prompt: { kind: "scanConfirm", draft: ScanDraft.from(await library.lookup(code)) } });
     }, false);
@@ -487,19 +504,24 @@ export class LibraryAppModel extends Observable<AppState> {
     });
   }
 
+  // What the shelves show: nothing while locked, otherwise the owner's library.
+  private async viewOf(library: LibraryController): Promise<LibraryView> {
+    return this.locked ? LibraryView.empty() : library.view();
+  }
+
   // Someone signed in or out: show that owner's library from the main screen.
   private async switchOwner(ownerId: string): Promise<void> {
     const library = this.controller;
     if (library) {
       library.useOwner(ownerId);
-      this.setState({ view: await library.view(), selectedIsbn: null, screen: "main" });
+      this.setState({ view: await this.viewOf(library), selectedIsbn: null, screen: "main" });
     }
   }
 
   // A sync brought books from another phone.
   private async reload(): Promise<void> {
     if (this.controller) {
-      this.setState({ view: await this.controller.view() });
+      this.setState({ view: await this.viewOf(this.controller) });
     }
   }
 
@@ -517,7 +539,7 @@ export class LibraryAppModel extends Observable<AppState> {
     this.setState({ busy: true, prompt: null });
     try {
       await work(library);
-      this.setState({ view: await library.view() });
+      this.setState({ view: await this.viewOf(library) });
       if (changesLibrary) {
         void this.account?.sync();
       }

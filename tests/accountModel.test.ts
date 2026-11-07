@@ -56,6 +56,26 @@ describe("Account tab", () => {
     expect((await store.loadLibrary("local")).books).toHaveLength(0);
   });
 
+  test("signed out, every shelf is empty and scanning is refused until someone signs in", async () => {
+    const { store, account, app } = await phone();
+    await store.save("local", owned()); // a book kept from before accounts
+    expect(app.locked).toBe(true);
+    expect(app.getState().view.owned).toHaveLength(0);
+    expect(app.hint).toBe("Sign in on the Account tab to use your library.");
+    expect(app.cameraListening).toBe(false);
+
+    await app.scan(FOX.isbn);
+    expect(app.getState().prompt).toBeNull();
+    expect(app.getState().flash?.text).toBe("Sign in on the Account tab to add books.");
+
+    await signIn(account);
+    await settle();
+    expect(app.locked).toBe(false);
+    expect(titles(app)).toEqual(["Fantastic Mr. Fox"]);
+    await app.scan(FOX.isbn);
+    expect(app.getState().prompt?.kind).toBe("scanConfirm");
+  });
+
   test("a wrong password or a bad email is explained, and nobody is signed in", async () => {
     const { account } = await phone();
     await signIn(account, "wrong password");
@@ -163,8 +183,9 @@ describe("Account tab", () => {
     expect(await backup.pull("user-1")).toHaveLength(1);
   });
 
-  test("with no Supabase settings the tab says so and the library works as before", async () => {
+  test("with no account service the Account tab says so, and the library stays locked", async () => {
     const { account, app } = await phone(new UnconfiguredAccounts(), new UnconfiguredLibraryBackup());
+    expect(app.locked).toBe(true);
     app.selectTab("account");
     expect(account.getState().configured).toBe(false);
     expect(app.hint).toBe("Accounts aren't set up in this copy of the app.");

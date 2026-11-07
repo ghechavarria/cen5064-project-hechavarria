@@ -19,6 +19,7 @@ import { Book, Shelf } from "../domain";
 import { ArtFill } from "./components/Art";
 import { BookDetail } from "./components/BookDetail";
 import { BookList } from "./components/BookList";
+import { EmptyShelf } from "./components/EmptyShelf";
 import { FlashBanner } from "./components/FlashBanner";
 import { IsbnCamera } from "./components/IsbnCamera";
 import { LibraryPrompts } from "./components/LibraryPrompts";
@@ -117,7 +118,7 @@ function LibraryScreen() {
           onBack={page === "detail" ? () => model.back() : undefined}
         />
 
-        {page === "tbr" ? (
+        {page === "tbr" && !model.locked ? (
           <SegmentedControl
             segments={model.readingSegments.map(({ key, label, read }) => ({
               key,
@@ -132,7 +133,7 @@ function LibraryScreen() {
         <FlashBanner flash={state.flash} onDismiss={() => model.dismissFlash()} />
 
         {/* The camera sits outside the ScrollView so it keeps a fixed size. */}
-        {page === "scan" ? (
+        {page === "scan" && !model.locked ? (
           <IsbnCamera
             available={model.cameraAvailable}
             listening={model.cameraListening}
@@ -141,7 +142,14 @@ function LibraryScreen() {
         ) : null}
 
         <View style={styles.stage}>
-          {page === "owned" ? (
+          {model.locked && page !== "account" ? (
+            <EmptyShelf
+              iconName="person-circle-outline"
+              title="Sign in to see your library"
+              message="Your books are kept in your account, so you can see them on any phone."
+              action={{ label: "Go to Account", onPress: () => model.selectTab("account") }}
+            />
+          ) : page === "owned" ? (
             <OwnedCatalog
               books={state.view.owned}
               mode={state.catalogMode}
