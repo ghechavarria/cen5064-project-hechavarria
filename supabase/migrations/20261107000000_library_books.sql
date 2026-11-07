@@ -29,6 +29,10 @@ create table if not exists public.library_books (
   primary key (owner_id, isbn)
 );
 
+-- Only signed-in users may use the table at all (the project does not expose new
+-- tables automatically); signed-out visitors (the anon role) get nothing.
+grant select, insert, update, delete on public.library_books to authenticated;
+
 -- Row level security: a signed-in user reaches only their own rows. With this on,
 -- the public (anon / publishable) key in the app cannot read anyone else's library.
 alter table public.library_books enable row level security;
