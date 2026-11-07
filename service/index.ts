@@ -2,7 +2,9 @@
  * Service barrel: every use case, the shared base classes, UseCases, and the
  * book-source error the screens show.
  */
-export { BookSourceUnavailableError } from "./ports";
+export { AccountError, BookSourceUnavailableError, SyncUnavailableError } from "./ports";
+export type { Account } from "./ports";
+export { AccountUseCase, AccountUseCases, ResetPasswordUseCase, SignInUseCase, SignOutUseCase, SignUpUseCase } from "./account";
 export { ChangeCoverUseCase } from "./changeCover";
 export { DeleteBookUseCase } from "./deleteBook";
 export { FillMissingFactsUseCase } from "./fillMissingFacts";

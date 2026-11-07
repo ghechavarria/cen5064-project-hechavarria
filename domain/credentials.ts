@@ -25,6 +25,15 @@ export class Credentials {
     return email;
   }
 
+  // The password-reset code from the email: digits only (6 by default in Supabase).
+  static resetCode(raw: string): string {
+    const code = raw.replace(/\s/g, "");
+    if (!/^\d{6,10}$/.test(code)) {
+      throw new InvalidCredentialsError("Enter the code from the email.");
+    }
+    return code;
+  }
+
   static password(raw: string): string {
     if (raw.length < Credentials.MIN_PASSWORD) {
       throw new InvalidCredentialsError(`Use a password of at least ${Credentials.MIN_PASSWORD} characters.`);

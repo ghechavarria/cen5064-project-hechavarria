@@ -3,8 +3,89 @@
  * are checked in the domain; the use cases and sync run against fakes, so no
  * network or Supabase project is needed.
  */
+import { MemoryBookRepository } from "../data/bookRepository";
 import { Credentials } from "../domain";
 import { InvalidCredentialsError } from "../domain/exceptions";
+import { AccountUseCases } from "../service";
+import { Account, Accounts, BookVersion, LibraryBackup } from "../service/ports";
+
+/** Test double for Accounts: records each call (with the values it received) and signs in anyone. */
+class FakeAccounts implements Accounts {
+  readonly configured = true;
+  readonly calls: string[] = [];
+  private account: Account | null = null;
+
+  async current(): Promise<Account | null> {
+    return this.account;
+  }
+  async signUp(email: string, password: string): Promise<Account | null> {
+    this.calls.push(`signUp ${email} ${password}`);
+    return (this.account = { id: "user-1", email });
+  }
+  async signIn(email: string, password: string): Promise<Account> {
+    this.calls.push(`signIn ${email} ${password}`);
+    return (this.account = { id: "user-1", email });
+  }
+  async signOut(): Promise<void> {
+    this.calls.push("signOut");
+    this.account = null;
+  }
+  async sendResetCode(email: string): Promise<void> {
+    this.calls.push(`sendResetCode ${email}`);
+  }
+  async resetPassword(email: string, code: string, newPassword: string): Promise<Account> {
+    this.calls.push(`resetPassword ${email} ${code} ${newPassword}`);
+    return (this.account = { id: "user-1", email });
+  }
+  onChange(): () => void {
+    return () => undefined;
+  }
+}
+
+/** A backup that holds nothing; these tests are about accounts, not sync. */
+class EmptyBackup implements LibraryBackup {
+  async pull(): Promise<BookVersion[]> {
+    return [];
+  }
+  async push(): Promise<void> {}
+}
+
+function accountUseCases() {
+  const accounts = new FakeAccounts();
+  const store = new MemoryBookRepository();
+  return { accounts, useCases: new AccountUseCases(accounts, store, store, new EmptyBackup()) };
+}
+
+describe("Account use cases", () => {
+  test("sign up, sign in and sign out pass the cleaned-up email to the account service", async () => {
+    const { accounts, useCases } = accountUseCases();
+    expect(await useCases.signUp.execute(" Grace@Example.com ", "correct horse")).toEqual({ id: "user-1", email: "grace@example.com" });
+    await useCases.signOut.execute();
+    await useCases.signIn.execute("GRACE@example.com", "correct horse");
+    expect(accounts.calls).toEqual(["signUp grace@example.com correct horse", "signOut", "signIn grace@example.com correct horse"]);
+  });
+
+  test("a bad email, short password or malformed code never reaches the account service", async () => {
+    const { accounts, useCases } = accountUseCases();
+    expect(() => useCases.signIn.execute("grace", "correct horse")).toThrow(InvalidCredentialsError);
+    expect(() => useCases.signUp.execute("grace@example.com", "short")).toThrow(InvalidCredentialsError);
+    expect(() => useCases.resetPassword.sendCode("not an email")).toThrow(InvalidCredentialsError);
+    expect(() => useCases.resetPassword.execute("grace@example.com", "12ab", "correct horse")).toThrow(
+      new InvalidCredentialsError("Enter the code from the email."),
+    );
+    expect(accounts.calls).toEqual([]);
+  });
+
+  test("a forgotten password: a code is emailed, then the code and a new password sign in", async () => {
+    const { accounts, useCases } = accountUseCases();
+    await useCases.resetPassword.sendCode("grace@example.com");
+    expect(await useCases.resetPassword.execute("grace@example.com", " 123 456 ", "brand new pass")).toEqual({
+      id: "user-1",
+      email: "grace@example.com",
+    });
+    expect(accounts.calls).toEqual(["sendResetCode grace@example.com", "resetPassword grace@example.com 123456 brand new pass"]);
+  });
+});
 
 describe("Credentials", () => {
   test("a valid email is trimmed and lower-cased; the password is kept as typed", () => {
