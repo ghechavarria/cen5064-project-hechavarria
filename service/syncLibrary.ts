@@ -33,6 +33,12 @@ export class SyncLibraryUseCase {
     return { downloaded: download.length, uploaded: upload.length };
   }
 
+  // Calls onChange when another phone changes this account's backup, so the
+  // caller can sync straight away. Returns a function that stops watching.
+  watch(accountId: string, onChange: () => void): () => void {
+    return this.backup.watch(accountId, onChange);
+  }
+
   // First sign-in on this phone: the books kept before signing in move into the
   // account. Sync first so the account's books are here, move, then sync the result.
   // Offline, the books still move (so none seem to vanish) and sync later.

@@ -11,7 +11,7 @@
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { AppState, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositionRoot } from "../bootstrap";
 import { AccountPanel } from "./components/AccountPanel";
@@ -75,6 +75,16 @@ function LibraryScreen() {
     void model.start();
     return () => model.dispose();
   }, [model]);
+
+  // Back on screen: sync, in case a change from another phone was missed meanwhile.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (appState) => {
+      if (appState === "active") {
+        void account.sync();
+      }
+    });
+    return () => subscription.remove();
+  }, [account]);
 
   if (!state.ready || (!fontsLoaded && !fontError)) {
     return (

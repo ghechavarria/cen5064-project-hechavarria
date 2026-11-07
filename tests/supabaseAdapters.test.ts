@@ -151,6 +151,12 @@ class FakeTable implements LibraryBooksTable {
     return { error: this.failure };
   }
 
+  watch(ownerId: string, onChange: () => void) {
+    this.requests.push(`watch ${ownerId}`);
+    onChange();
+    return () => this.requests.push(`unwatch ${ownerId}`);
+  }
+
   private reach(request: string) {
     if (this.offline) {
       throw new TypeError("Network request failed");
@@ -179,6 +185,15 @@ describe("SupabaseLibraryBackup", () => {
     await backup.push("user-1", [giftVersion(2000, 2000)]);
     expect(await backup.pull("user-1")).toMatchObject([{ updatedAt: 2000, deletedAt: 2000 }]);
     expect(await backup.pull("user-2")).toEqual([]);
+  });
+
+  test("watching passes the table's change notices on, and can be stopped", () => {
+    const table = new FakeTable();
+    let heard = 0;
+    const stop = new SupabaseLibraryBackup(table).watch("user-1", () => (heard += 1));
+    stop();
+    expect(heard).toBe(1);
+    expect(table.requests).toEqual(["watch user-1", "unwatch user-1"]);
   });
 
   test("a large library is read and written in pages", async () => {

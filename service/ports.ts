@@ -71,6 +71,9 @@ export interface SyncStore {
 export interface LibraryBackup {
   pull(ownerId: string): Promise<BookVersion[]>;
   push(ownerId: string, versions: BookVersion[]): Promise<void>;
+  // Calls onChange whenever this account's backup changes (another phone
+  // synced), so this phone can sync at once. Returns a function that stops it.
+  watch(ownerId: string, onChange: () => void): () => void;
 }
 
 /** A signed-in account; its id is the ownerId of its books. */

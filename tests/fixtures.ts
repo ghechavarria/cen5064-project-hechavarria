@@ -141,10 +141,20 @@ export class FakeAccounts implements Accounts {
   }
 }
 
-/** Test double for LibraryBackup: the account's copy in memory; `offline` fails every call. */
+/**
+ * Test double for LibraryBackup: the account's copy in memory; `offline` fails
+ * every call. Like Supabase Realtime, a push tells every watcher of that account.
+ */
 export class FakeBackup implements LibraryBackup {
   private readonly versions = new Map<string, BookVersion[]>();
+  private readonly watchers = new Set<{ ownerId: string; onChange: () => void }>();
   offline = false;
+
+  watch(ownerId: string, onChange: () => void): () => void {
+    const watcher = { ownerId, onChange };
+    this.watchers.add(watcher);
+    return () => this.watchers.delete(watcher);
+  }
 
   async pull(ownerId: string): Promise<BookVersion[]> {
     this.reach();
@@ -157,6 +167,7 @@ export class FakeBackup implements LibraryBackup {
       (stored) => !versions.some((version) => version.book.isbn === stored.book.isbn),
     );
     this.versions.set(ownerId, [...kept, ...versions]);
+    [...this.watchers].filter((watcher) => watcher.ownerId === ownerId).forEach((watcher) => watcher.onChange());
   }
 
   private reach(): void {

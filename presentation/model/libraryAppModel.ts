@@ -207,6 +207,7 @@ export class LibraryAppModel extends Observable<AppState> {
 
   dispose(): void {
     this.clearFlashTimer();
+    this.account?.dispose();
   }
 
   // --- Navigation and inputs ---

@@ -5,7 +5,8 @@
  *
  * LibraryAppModel watches it: when the account changes, the library switches
  * to that account's books; when a sync brings books in, the shelves reload; and
- * after every change to the library it asks for a sync.
+ * after every change to the library it asks for a sync. While someone is signed
+ * in, a change made on another phone starts a sync here too (auto sync).
  */
 import { DomainError } from "../../domain/exceptions";
 import { Account, AccountError, AccountUseCases, SyncUnavailableError } from "../../service";
@@ -38,6 +39,7 @@ export class AccountModel extends Observable<AccountState> {
   private syncing: Promise<void> | null = null;
   private syncAgain = false;
   private started = false;
+  private stopWatching: (() => void) | null = null;
 
   // The use cases come from bootstrap, which opens them asynchronously.
   // `deviceOwnerId` owns the books kept while nobody is signed in.
@@ -103,12 +105,18 @@ export class AccountModel extends Observable<AccountState> {
     this.useCases = useCases;
     const account = await useCases.accounts.current();
     this.setState({ ready: true, configured: useCases.accounts.configured, account, sync: account ? "synced" : "off" });
+    this.watchBackup();
     // A session can also end outside the app's buttons (expired, revoked).
     useCases.accounts.onChange((changed) => {
       if (!changed && this.getState().account && !this.getState().busy) {
         this.become(null);
       }
     });
+  }
+
+  dispose(): void {
+    this.stopWatching?.();
+    this.stopWatching = null;
   }
 
   /** Called with the new owner id whenever someone signs in or out. */
@@ -227,7 +235,18 @@ export class AccountModel extends Observable<AccountState> {
 
   private become(account: Account | null): void {
     this.setState({ account, sync: account ? this.getState().sync : "off" });
+    this.watchBackup();
     this.ownerListeners.forEach((listener) => listener(this.ownerId));
+  }
+
+  // Auto sync: listen to the signed-in account's backup (only one at a time),
+  // and sync whenever another phone changes it.
+  private watchBackup(): void {
+    this.dispose();
+    const account = this.getState().account;
+    if (account && this.useCases) {
+      this.stopWatching = this.useCases.sync.watch(account.id, () => void this.sync());
+    }
   }
 
   /**

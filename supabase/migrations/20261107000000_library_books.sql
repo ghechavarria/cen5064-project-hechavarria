@@ -48,3 +48,10 @@ create policy "change own books" on public.library_books
 
 create policy "remove own books" on public.library_books
   for delete to authenticated using (auth.uid() = owner_id);
+
+-- Realtime (auto sync): phones signed in to the same account hear about each
+-- other's changes and sync at once. Row level security applies to these too.
+do $$ begin
+  alter publication supabase_realtime add table public.library_books;
+exception when duplicate_object then null;
+end $$;

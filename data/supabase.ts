@@ -55,10 +55,14 @@ export type RemoteBookRow = {
 
 type Result<T> = { data: T; error: SupabaseError | null };
 
-/** The table calls SupabaseLibraryBackup makes: one owner's rows a page at a time, and an upsert. */
+/**
+ * The table calls SupabaseLibraryBackup makes: one owner's rows a page at a
+ * time, an upsert, and a live watch on that owner's rows.
+ */
 export interface LibraryBooksTable {
   page(ownerId: string, from: number, to: number): PromiseLike<Result<RemoteBookRow[] | null>>;
   upsert(rows: RemoteBookRow[]): PromiseLike<{ error: SupabaseError | null }>;
+  watch(ownerId: string, onChange: () => void): () => void;
 }
 
 /** library_books through the real client. Rows come back in ISBN order so paging is stable. */
@@ -71,6 +75,20 @@ class SupabaseLibraryBooks implements LibraryBooksTable {
 
   upsert(rows: RemoteBookRow[]): PromiseLike<{ error: SupabaseError | null }> {
     return this.client.from("library_books").upsert(rows, { onConflict: "owner_id,isbn" });
+  }
+
+  // Realtime: any insert, update or delete of this owner's rows. Row level
+  // security applies here too, so a phone only hears about its own account.
+  watch(ownerId: string, onChange: () => void): () => void {
+    const channel = this.client
+      .channel(`library_books:${ownerId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "library_books", filter: `owner_id=eq.${ownerId}` },
+        () => onChange(),
+      )
+      .subscribe();
+    return () => void this.client.removeChannel(channel);
   }
 }
 

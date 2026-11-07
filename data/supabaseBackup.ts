@@ -21,6 +21,10 @@ export class UnconfiguredLibraryBackup implements LibraryBackup {
   async push(): Promise<void> {
     throw new SyncUnavailableError("accounts are not set up");
   }
+
+  watch(): () => void {
+    return () => undefined;
+  }
 }
 
 export class SupabaseLibraryBackup implements LibraryBackup {
@@ -49,6 +53,11 @@ export class SupabaseLibraryBackup implements LibraryBackup {
       const { error } = await SupabaseLibraryBackup.attempt(() => this.table.upsert(rows.slice(from, from + PAGE_SIZE)));
       SupabaseLibraryBackup.check(error);
     }
+  }
+
+  // Supabase Realtime tells this phone when the account's rows change.
+  watch(ownerId: string, onChange: () => void): () => void {
+    return this.table.watch(ownerId, onChange);
   }
 
   // A request that throws (no network) is reported like a request that failed.

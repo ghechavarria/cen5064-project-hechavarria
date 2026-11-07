@@ -123,6 +123,30 @@ describe("Account tab", () => {
     expect(titles(phoneB.app)).toEqual(["Fantastic Mr. Fox"]);
   });
 
+  test("auto sync: a book added on one phone appears on the other with no tap", async () => {
+    const backup = new FakeBackup();
+    const phoneA = await phone(new FakeAccounts(), backup);
+    const phoneB = await phone(new FakeAccounts(), backup);
+    await signIn(phoneA.account);
+    await signIn(phoneB.account);
+
+    await phoneA.app.scan(FOX.isbn);
+    phoneA.app.confirmScan();
+    phoneA.app.chooseScanShelf(Shelf.OWNED);
+    phoneA.app.choosePurchased();
+    phoneA.app.chooseReading(ReadingStatus.UNREAD);
+    for (let i = 0; i < 5; i += 1) {
+      await settle();
+    }
+    expect(titles(phoneB.app)).toEqual(["Fantastic Mr. Fox"]);
+
+    await phoneB.account.signOut(); // a signed-out phone stops listening
+    await phoneA.store.save("user-1", owned(MATILDA));
+    await phoneA.account.sync();
+    await settle();
+    expect((await phoneB.store.loadLibrary("user-1")).books.map((book) => book.title)).toEqual(["Fantastic Mr. Fox"]);
+  });
+
   test("offline: signing in still works on this phone, and sync waits", async () => {
     const backup = new FakeBackup();
     const { store, account, app } = await phone(new FakeAccounts(), backup);
