@@ -1,0 +1,21 @@
+classDiagram
+    direction LR
+    class LibraryUseCase {
+        <<abstract>>
+        #repository: BookRepository
+        #library(ownerId) PersonalLibrary
+        #updateBook(ownerId, isbn, change) Book
+    }
+    class LibraryLookupUseCase {
+        <<abstract>>
+        #isbnLookup: IsbnLookup
+        #tryFillFacts(book)
+    }
+    LoadLibraryUseCase --|> LibraryUseCase
+    MoveBookToShelfUseCase --|> LibraryUseCase
+    SetReadingStatusUseCase --|> LibraryUseCase
+    DeleteBookUseCase --|> LibraryUseCase
+    ChangeCoverUseCase --|> LibraryUseCase
+    LibraryLookupUseCase --|> LibraryUseCase
+    ScanBookUseCase --|> LibraryLookupUseCase
+    FillMissingFactsUseCase --|> LibraryLookupUseCase

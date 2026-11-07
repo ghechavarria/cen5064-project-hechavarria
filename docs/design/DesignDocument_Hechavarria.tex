@@ -1240,9 +1240,16 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.55\textheight, keepaspectratio]{figures/class-service-data.png}
-\caption{Class Diagram: Service use cases, ports, and Data adapters}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-service.png}
+\caption{Class Diagram: Service use cases (the two abstract bases hold the ports they use)}
 \label{fig:class_service}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-data.png}
+\caption{Class Diagram: Data adapters and the ports they implement}
+\label{fig:class_data}
 \end{figure}
 
 \begin{figure}[htbp]
@@ -1255,7 +1262,7 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \FloatBarrier
 
-Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. Figures~\ref{fig:class_service} and~\ref{fig:class_presentation} are supplementary: they show how the other tiers are built, for readers tracing a call through the code. The object-oriented techniques used, and where:
+Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. Figures~\ref{fig:class_service}, \ref{fig:class_data} and~\ref{fig:class_presentation} are supplementary: they show how the other tiers are built (Service, Data, Presentation), for readers tracing a call through the code. The object-oriented techniques used, and where:
 
 \begin{longtable}{|L{3.6cm}|L{11cm}|}
 \hline
