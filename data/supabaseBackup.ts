@@ -12,6 +12,17 @@ import type { LibraryBooksTable, RemoteBookRow, SupabaseError } from "./supabase
 // Rows per request. Supabase returns at most 1000 rows per read by default.
 const PAGE_SIZE = 500;
 
+/** Null Object: no Supabase settings, so there is no backup to reach (and nobody signs in to ask). */
+export class UnconfiguredLibraryBackup implements LibraryBackup {
+  async pull(): Promise<BookVersion[]> {
+    throw new SyncUnavailableError("accounts are not set up");
+  }
+
+  async push(): Promise<void> {
+    throw new SyncUnavailableError("accounts are not set up");
+  }
+}
+
 export class SupabaseLibraryBackup implements LibraryBackup {
   constructor(private readonly table: LibraryBooksTable) {}
 

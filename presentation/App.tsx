@@ -53,7 +53,7 @@ function LibraryScreen() {
   const [model] = useState(
     () =>
       new LibraryAppModel(
-        async () => new LibraryController(await CompositionRoot.openUseCases(), OWNER_ID),
+        async () => new LibraryController((await CompositionRoot.open()).library, OWNER_ID),
         Platform.OS === "web" ? new BrowserDevices() : new PhoneDevices(),
       ),
   );
