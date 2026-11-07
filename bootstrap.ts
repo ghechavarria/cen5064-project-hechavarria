@@ -18,6 +18,18 @@ import { BookRepository, IsbnCache, IsbnLookup, SyncStore } from "./service/port
 /** The device store: it keeps the library, caches lookups and serves sync; three separate ports. */
 type LocalStore = BookRepository & IsbnCache & SyncStore;
 
+/**
+ * The shared MyHomeLib Supabase project, so a fresh clone can create an account
+ * with no setup. Its publishable key is public by design: row level security
+ * keeps each account to its own rows (ADR-012). Never put the secret or
+ * service_role key here. EXPO_PUBLIC_SUPABASE_URL / _KEY in .env point the app
+ * at another project instead.
+ */
+const SHARED_SUPABASE = {
+  url: "https://abpyekzqvmjulnlpmowv.supabase.co",
+  publicKey: "sb_publishable_h1dki90msp5JxM2qoNfRkA_wgLoFZAw",
+};
+
 /** Everything the app runs on: the library use cases, and the account use cases with sync. */
 export type AppServices = { library: UseCases; account: AccountUseCases };
 
@@ -37,12 +49,12 @@ export class CompositionRoot {
     return googleKey ? [new GoogleBooksIsbnLookup(googleKey), openLibrary] : [openLibrary];
   }
 
-  // Accounts need the Supabase project URL and its public key in .env (ADR-012).
-  // Without them the Null Objects stand in: nobody can sign in, and the app
-  // keeps the library on this device only, exactly as before.
+  // Accounts use the project named in .env, or else the shared one (ADR-012).
+  // If neither gives a URL and key, the Null Objects stand in: nobody can sign
+  // in, and the app keeps the library on this device only.
   private static accountUseCases(store: LocalStore): AccountUseCases {
-    const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
-    const publicKey = process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim();
+    const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || SHARED_SUPABASE.url;
+    const publicKey = process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() || SHARED_SUPABASE.publicKey;
     if (!url || !publicKey) {
       return new AccountUseCases(new UnconfiguredAccounts(), store, store, new UnconfiguredLibraryBackup());
     }
