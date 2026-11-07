@@ -1191,8 +1191,8 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \textbf{Process} & \textbf{Verification} & \textbf{Figure} \\
 \midrule
 \endhead
-\textbf{(4)} We open the app on the To be read tab with a small library. Owned unread books are listed; the switch shows the unread and read counts. & Verify that TBR lists Owned books split Unread / Read & Fig.~\ref{fig:v_tbr} \\
-\textbf{(5)} We switch to Read. Only finished Owned books appear, marked with a leaf. With an empty library the shelf explains itself and offers Scan. & Verify that reading status is independent of the shelf & Fig.~\ref{fig:v_tbr} \\
+\textbf{(4)} We open the app on the To be read tab with a small library. Owned unread books are listed; the switch shows the unread and read counts. & Verify that TBR lists Owned books split Unread / Read & Fig.~\ref{fig:gui_tbr} \\
+\textbf{(5)} We switch to Read. Only finished Owned books appear, marked with a leaf. With an empty library the shelf explains itself and offers Scan. & Verify that reading status is independent of the shelf & Fig.~\ref{fig:gui_tbr} \\
 \textbf{(6)} We open Owned and switch between A--Z, Author, and Series. Each grouping lists the same books under index headings. & Verify the three catalog groupings & Fig.~\ref{fig:gui_owned} \\
 \textbf{(7)} In Series, the Dune series appears as a fan of covers with a count badge of 2; tapping it lists both books. & Verify series grouping and expansion & Fig.~\ref{fig:gui_owned} \\
 \textbf{(8)} We scan the ISBN of Matilda, which is already cataloged. The popup says it is already in the library; confirming adds a copy, and the banner reports ``Copies: 2'' without a second entry. & Verify that a duplicate ISBN increments the copy count & Fig.~\ref{fig:v_duplicate} \\
@@ -1200,12 +1200,6 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \bottomrule
 \end{longtable}
 
-\begin{figure}[H]
-    \centering
-    \screen[0.18\textwidth]{tbr-unread}\hfill\screen[0.18\textwidth]{tbr-read}\hfill\screen[0.18\textwidth]{empty-tbr}
-    \caption{TBR unread, TBR read, and the empty state}
-    \label{fig:v_tbr}
-\end{figure}
 
 
 \begin{figure}[H]
