@@ -6,7 +6,7 @@
  *   - Series: a fanned SeriesStack per series (tap to expand); standalone books listed plainly
  * Grouping rules live in CatalogGrouping; rail math lives in AlphabetRail.
  */
-import { useRef, useState } from "react";
+import { ComponentRef, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Book } from "../../domain";
 import { Catalog, CatalogMode, CatalogSection } from "../model/catalog";
@@ -34,7 +34,7 @@ export function OwnedCatalog({
   onMode: (mode: CatalogMode) => void;
   onOpen: (book: Book) => void;
 }) {
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // Each section's measured top inside the list, so the rail can jump to it exactly.
   const sectionTops = useRef<number[]>([]);
   const [openSeries, setOpenSeries] = useState<string | null>(null);

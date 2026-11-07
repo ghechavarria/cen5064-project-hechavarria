@@ -4,7 +4,7 @@
  * the section to scroll to. Letters with no books are dimmed.
  * The math lives in AlphabetRail.
  */
-import { useMemo, useRef, useState } from "react";
+import { ComponentRef, useMemo, useRef, useState } from "react";
 import { PanResponder, Text, View } from "react-native";
 import { AlphabetRail } from "../model/alphabetRail";
 import { Catalog, CatalogSection } from "../model/catalog";
@@ -17,7 +17,7 @@ export function LetterRail({
   sections: CatalogSection[];
   onJump: (sectionIndex: number) => void;
 }) {
-  const railView = useRef<View>(null);
+  const railView = useRef<ComponentRef<typeof View>>(null);
   const rail = useRef(new AlphabetRail()).current;
   const [scrub, setScrub] = useState<string | null>(null);
   // True while a finger (or mouse button) is down; the bubble only shows then.
