@@ -331,7 +331,7 @@ Figure~\ref{fig:iface_presentation} shows the interface between the screens and 
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.42\textheight, keepaspectratio]{figures/iface-service.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-service.png}
 \caption{Service Use Case Interface}
 \label{fig:iface_service}
 \end{figure}
@@ -353,7 +353,7 @@ Figure~\ref{fig:iface_domain} shows the domain interface. \texttt{PersonalLibrar
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.9\textwidth, height=0.3\textheight, keepaspectratio]{figures/iface-data.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-data.png}
 \caption{Book Repository Interface}
 \label{fig:iface_data}
 \end{figure}
@@ -1241,19 +1241,7 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 \label{fig:class_domain}
 \end{figure}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-service.png}
-\caption{Class Diagram: Service use cases (the two abstract bases hold the ports they use)}
-\label{fig:class_service}
-\end{figure}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-data.png}
-\caption{Class Diagram: Data adapters and the ports they implement}
-\label{fig:class_data}
-\end{figure}
 
 \begin{figure}[htbp]
 \centering
@@ -1265,7 +1253,7 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \FloatBarrier
 
-Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. Figures~\ref{fig:class_service}, \ref{fig:class_data} and~\ref{fig:class_presentation} are supplementary: they show how the other tiers are built (Service, Data, Presentation), for readers tracing a call through the code. The object-oriented techniques used, and where:
+Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. The other tiers' classes are drawn where their interfaces are described, so they are not repeated here: Service in Figure~\ref{fig:iface_service}, Data in Figures~\ref{fig:iface_data} and~\ref{fig:iface_sources}. Figure~\ref{fig:class_presentation} adds the Presentation view model, its device family, and the catalog strategies. The object-oriented techniques used, and where:
 
 \begin{longtable}{|L{3.6cm}|L{11cm}|}
 \hline
