@@ -25,43 +25,74 @@ All 4 are built. Features 1–3 are tested end to end in [`tests/coreFeatures.te
 
 ## How to run
 
-MyHomeLib is a mobile app: it runs on your iPhone or Android phone inside the free Expo Go app. On the computer you need [Node.js](https://nodejs.org/) (LTS) and [Git](https://git-scm.com/). No Xcode, no Android Studio, no paid developer account.
+MyHomeLib is a mobile app. It runs on an iPhone or Android phone inside the free **Expo Go** app, served from your computer. No Xcode, no Android Studio, no paid developer account.
 
-1. **Download Expo Go** on your phone, free from the App Store (iPhone) or Google Play (Android).
-2. **Clone the repository** and open the project folder:
+### What you need
+
+- A computer (Windows, macOS or Linux) with [Node.js](https://nodejs.org/) **LTS** and [Git](https://git-scm.com/) installed. Check in a terminal: `node -v` and `git --version` should each print a version.
+- An iPhone or Android phone on the **same Wi-Fi network** as the computer.
+- A Google account (for the free Google Books API key in step 3).
+
+### Steps
+
+1. **Install Expo Go on your phone** from the App Store (iPhone) or Google Play (Android). If it is already installed, update it to the latest version: the project uses Expo SDK 58, and an older Expo Go says "Project is incompatible with this version of Expo Go".
+
+2. **Download the project.** In a terminal:
    ```
    git clone https://github.com/ghechavarria/cen5064-project-hechavarria.git
    cd cen5064-project-hechavarria
    ```
-3. **Optional: add a Google Books API key** (free; lets scans match the exact edition and its cover). You can skip this step. Create a file named `.env` in the project folder (or copy `.env.example` to `.env`) containing:
+
+3. **Get a Google Books API key** (free; scans use it to find the exact edition and its cover):
+   1. Open the [Google Cloud console](https://console.cloud.google.com/) and sign in with your Google account.
+   2. Create a project: click the project picker at the top → **New project** → type any name (for example `myhomelib`) → **Create**. Make sure the new project is selected in the picker.
+   3. Turn on the API: menu ☰ → **APIs & Services** → **Library** → search **Books API** → open it → **Enable**.
+   4. Create the key: **APIs & Services** → **Credentials** → **+ Create credentials** → **API key**. Copy the key it shows.
+   5. Restrict the key: on the same page click the key's name → **API restrictions** → **Restrict key** → tick **Books API** → **Save**.
+
+4. **Put the key in a `.env` file** in the project folder. Copy the example file:
+   - Windows (Command Prompt or PowerShell): `copy .env.example .env`
+   - macOS / Linux: `cp .env.example .env`
+
+   Open `.env` in any text editor and paste your key after the `=` on this line, with no spaces or quotes:
    ```
    EXPO_PUBLIC_GOOGLE_BOOKS_KEY=your-key-here
    ```
-   To get the key:
-   - Go to the [Google Cloud console](https://console.cloud.google.com/) and sign in with a Google account.
-   - Create a project: the project picker at the top → **New project** → any name → **Create**.
-   - Enable the API: **APIs & Services** → **Library** → search **Books API** → **Enable**.
-   - Create the key: **APIs & Services** → **Credentials** → **Create credentials** → **API key**, then copy it into `.env`.
-   - Recommended: edit the key → **API restrictions** → **Restrict key** → choose **Books API** → **Save**.
+   Save the file. Leave the two `EXPO_PUBLIC_SUPABASE_` lines empty: accounts use the shared MyHomeLib project built into the app. `.env` is ignored by Git, so your key is never committed.
 
-   The key is optional: without it the app uses Open Library only ([ADR-006](docs/adr/adr-006.md)). The `.env` file is ignored by Git, so the key is never committed.
-4. **Install the dependencies:**
+5. **Install the dependencies** (takes a minute or two the first time):
    ```
    npm install
    ```
-5. **Start the development server:**
+
+6. **Start the app server:**
    ```
    npx expo start
    ```
-6. **Open the app on your phone:** with the phone on the same Wi-Fi as the computer, open Expo Go and tap the local development server listed under **Development servers**. If it isn't listed, scan the QR code printed in the terminal (iPhone: with the Camera app; Android: with **Scan QR code** in Expo Go).
+   Leave this terminal open while you use the app. It prints a QR code.
 
-Then sign in (below), open **Scan**, allow the camera, and point it at the ISBN barcode on a book.
+7. **Open the app on your phone:**
+   - Open Expo Go. Under **Development servers**, tap the MyHomeLib server.
+   - If it isn't listed, scan the QR code from the terminal: on iPhone with the **Camera** app, on Android with **Scan QR code** inside Expo Go.
 
-**Sign in first (no setup needed):** the library is kept in your account, so the shelves stay empty and scanning is off until you sign in. Open the **Account** tab → **Create an account**, and enter your email and a password of at least 8 characters; you are signed in straight away. Sign in with the same email and password on a second phone and the same library appears there. Syncing is automatic: a change on one phone shows up on the other within moments (and whenever the app comes back on screen), with **Sync now** for a manual check. The app connects to the shared MyHomeLib Supabase project built into the code, so there are no keys to add. To use your own Supabase project instead, see [ADR-012](docs/adr/adr-012.md) and `.env.example`.
+8. **Create an account.** The library is kept in your account, so the shelves stay empty and scanning is off until you sign in. Tap the **Account** tab → **Create an account** → enter your email and a password of at least 8 characters → **Create account**. You are signed in straight away.
+
+9. **Scan a book.** Tap **Scan**, allow the camera, and point it at the ISBN barcode on the back of a book (or type the ISBN below the camera). Pick the cover that matches your copy, then answer the questions to shelve it.
+
+**A second phone:** repeat step 7 on it (or steps 1–9 on another computer) and sign in with the same email and password; the same library appears there. Syncing is automatic: a change on one phone shows up on the other, and the app also syncs when it comes back on screen. **Sync now** on the Account tab checks by hand.
+
+### If something goes wrong
+
+| Problem | Fix |
+|---|---|
+| "Project is incompatible with this version of Expo Go" | Update Expo Go from the App Store or Google Play (step 1). |
+| The phone doesn't list the server, or the QR code won't open | Check the phone and computer are on the same Wi-Fi. Otherwise stop the server (Ctrl+C) and run `npx expo start --tunnel` (say yes if it asks to install `@expo/ngrok`), then scan the new QR code. |
+| Scans find nothing or show no covers after editing `.env` | Stop the server (Ctrl+C) and start it again with `npx expo start --clear`, so the key is read. |
+| `npm install` or `npx` is not recognized | Install Node.js LTS, then close and reopen the terminal. |
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos. Accounts and sync work in the browser too.
 
-Tests: `npm test` (192 tests: each core feature end to end, every tier, every user flow through the view models, SQLite and JSON persistence, sync between two phones, bad input and network failures, and the architecture rules).
+**Tests:** `npm test` runs 195 tests: each core feature end to end, every tier, every user flow through the view models, SQLite and JSON persistence, sync between two phones, bad input and network failures, and the architecture rules.
 
 ## Documentation
 
