@@ -16,7 +16,7 @@ import { Observable } from "./observable";
 export type AccountForm = "signIn" | "signUp";
 
 /** off: not signed in; syncing; synced; waiting: offline, the phone's copy syncs later. */
-export type SyncStatus = "off" | "syncing" | "synced" | "waiting";
+type SyncStatus = "off" | "syncing" | "synced" | "waiting";
 
 export type AccountState = {
   ready: boolean;
