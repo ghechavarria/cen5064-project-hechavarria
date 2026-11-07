@@ -1,10 +1,10 @@
 /**
  * Data: MemoryBookRepository (tests, and the store behind JSON) and
  * JsonBookRepository (Expo web: browser localStorage). Both implement the
- * BookRepository and IsbnCache ports; row ↔ Book conversion is BookRowMapper's job.
+ * BookRepository, IsbnCache and SyncStore ports; row ↔ Book conversion is BookRowMapper's job.
  */
 import { Book, PersonalLibrary } from "../domain";
-import { BookMetadata, BookRepository, IsbnCache } from "../service/ports";
+import { BookMetadata, BookRepository, BookVersion, IsbnCache, SyncStore } from "../service/ports";
 import { BookRow, BookRowMapper, StoredRow } from "./bookRowMapper";
 
 /** Everything the memory store holds; JSON saves exactly this. */
@@ -13,10 +13,18 @@ type Snapshot = { books: BookRow[]; isbnCache: Record<string, BookMetadata> };
 /** A snapshot as read back from storage: possibly from an older build, possibly damaged. */
 type StoredSnapshot = { books?: StoredRow[]; isbnCache?: Snapshot["isbnCache"] };
 
-/** In-memory store: rows in an array, ISBN cache in a map. */
-export class MemoryBookRepository implements BookRepository, IsbnCache {
+/** Milliseconds since 1970; injectable so tests control the sync timestamps. */
+export type Clock = () => number;
+
+/**
+ * In-memory store: rows in an array, ISBN cache in a map. A delete keeps the row
+ * as a tombstone (deletedAt), so sync can tell other phones; loading skips it.
+ */
+export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStore {
   private books: BookRow[] = [];
   private isbnCache: Record<string, BookMetadata> = {};
+
+  constructor(private readonly clock: Clock = Date.now) {}
 
   dump(): Snapshot {
     return { books: this.books, isbnCache: this.isbnCache };
@@ -53,26 +61,44 @@ export class MemoryBookRepository implements BookRepository, IsbnCache {
 
   async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
     return new PersonalLibrary(
-      this.books.filter((row) => row.ownerId === ownerId).map(BookRowMapper.toBook),
+      this.books.filter((row) => row.ownerId === ownerId && row.deletedAt === null).map(BookRowMapper.toBook),
     );
   }
 
-  // Insert, or replace the row with the same owner and ISBN.
+  // Insert, or replace the row with the same owner and ISBN (reviving a deleted one).
   async save(ownerId: string, book: Book): Promise<Book> {
-    const row = BookRowMapper.toRow(ownerId, book);
-    const existing = this.books.findIndex(
-      (stored) => stored.ownerId === ownerId && stored.isbn === book.isbn,
-    );
-    if (existing >= 0) {
-      this.books[existing] = row;
-    } else {
-      this.books.push(row);
-    }
+    this.put(BookRowMapper.toRow(ownerId, book, this.clock()));
     return book;
   }
 
+  // Soft delete: the row stays as a tombstone so the deletion syncs.
   async delete(ownerId: string, isbn: string): Promise<void> {
-    this.books = this.books.filter((row) => !(row.ownerId === ownerId && row.isbn === isbn));
+    const row = this.find(ownerId, isbn);
+    if (row && row.deletedAt === null) {
+      const now = this.clock();
+      this.put({ ...row, updatedAt: now, deletedAt: now });
+    }
+  }
+
+  async versions(ownerId: string): Promise<BookVersion[]> {
+    return this.books.filter((row) => row.ownerId === ownerId).map(BookRowMapper.toVersion);
+  }
+
+  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+    versions.forEach((version) => this.put(BookRowMapper.fromVersion(ownerId, version)));
+  }
+
+  private find(ownerId: string, isbn: string): BookRow | undefined {
+    return this.books.find((row) => row.ownerId === ownerId && row.isbn === isbn);
+  }
+
+  private put(row: BookRow): void {
+    const index = this.books.findIndex((stored) => stored.ownerId === row.ownerId && stored.isbn === row.isbn);
+    if (index >= 0) {
+      this.books[index] = row;
+    } else {
+      this.books.push(row);
+    }
   }
 
   async cachedIsbn(isbn: string): Promise<BookMetadata | null> {
@@ -101,11 +127,16 @@ const CACHE_PARSER_VERSION = 4;
  * localStorage store. Composition: it wraps a MemoryBookRepository, loads it
  * once from storage (hydrate) and writes it back after every change (persist).
  */
-export class JsonBookRepository implements BookRepository, IsbnCache {
-  private readonly memory = new MemoryBookRepository();
+export class JsonBookRepository implements BookRepository, IsbnCache, SyncStore {
+  private readonly memory: MemoryBookRepository;
   private loaded = false;
 
-  constructor(private readonly storage: KeyValueStorage) {}
+  constructor(
+    private readonly storage: KeyValueStorage,
+    clock: Clock = Date.now,
+  ) {
+    this.memory = new MemoryBookRepository(clock);
+  }
 
   loadLibrary(ownerId: string): Promise<PersonalLibrary> {
     return this.read(() => this.memory.loadLibrary(ownerId));
@@ -125,6 +156,14 @@ export class JsonBookRepository implements BookRepository, IsbnCache {
 
   cacheIsbn(metadata: BookMetadata): Promise<void> {
     return this.write(() => this.memory.cacheIsbn(metadata));
+  }
+
+  versions(ownerId: string): Promise<BookVersion[]> {
+    return this.read(() => this.memory.versions(ownerId));
+  }
+
+  applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+    return this.write(() => this.memory.applyVersions(ownerId, versions));
   }
 
   // Every read first makes sure storage has been loaded.

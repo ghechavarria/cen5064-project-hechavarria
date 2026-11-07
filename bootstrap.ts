@@ -10,10 +10,10 @@ import { GoogleBooksIsbnLookup } from "./data/googleBooks";
 import { CachingIsbnLookup, MergedIsbnLookup } from "./data/isbnLookup";
 import { OpenLibraryIsbnLookup } from "./data/openLibrary";
 import { UseCases } from "./service";
-import { BookRepository, IsbnCache, IsbnLookup } from "./service/ports";
+import { BookRepository, IsbnCache, IsbnLookup, SyncStore } from "./service/ports";
 
-/** The device store: it keeps the library and caches lookups, two separate ports. */
-type LocalStore = BookRepository & IsbnCache;
+/** The device store: it keeps the library, caches lookups and serves sync; three separate ports. */
+type LocalStore = BookRepository & IsbnCache & SyncStore;
 
 export class CompositionRoot {
   static async openUseCases(): Promise<UseCases> {
