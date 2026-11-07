@@ -1,30 +1,31 @@
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 16, "actorMargin": 30, "boxMargin": 6, "noteMargin": 6, "width": 110}}}%%
 sequenceDiagram
     actor U as Bibliophile
-    participant UI as Expo screens
+    participant UI as Screens
     participant S as Service
     participant L as IsbnLookup
     participant R as BookRepository
-    U->>UI: scan ISBN barcode
-    UI->>S: LookupIsbnUseCase.execute(isbn)
+    U->>UI: scan ISBN
+    UI->>S: LookupIsbnUseCase<br/>.execute(isbn)
     S->>S: Isbn.parse(isbn)
-    Note right of S: a typo stops here (InvalidIsbnError), before any network call
+    Note right of S: a typo stops here<br/>(InvalidIsbnError)
     S->>L: byIsbn(isbn)
-    Note right of L: Google Books + Open Library, merged, cached
-    L-->>S: BookMetadata (cover candidates, binding)
-    S-->>UI: title, author, covers
-    U->>UI: pick matching cover (or photo), binding if unknown, shelf, read status
-    UI->>S: ScanBookUseCase.execute(ownerId, isbn, shelf, readingStatus, acquisition, choices)
+    Note right of L: Google Books +<br/>Open Library,<br/>merged, cached
+    L-->>S: BookMetadata
+    S-->>UI: details + covers
+    U->>UI: cover, binding,<br/>shelf, read status
+    UI->>S: ScanBookUseCase<br/>.execute(ownerId, isbn, ...)
     S->>R: loadLibrary(ownerId)
     R-->>S: PersonalLibrary
     alt ISBN already in library
-        S->>S: library.get(isbn).addCopy()
-        Note right of S: domain rule: duplicate ISBN is a copy, not a second row
+        S->>S: book.addCopy()
+        Note right of S: duplicate ISBN =<br/>one more copy
     else new ISBN
         S->>L: byIsbn(isbn)
         L-->>S: BookMetadata
-        S->>S: library.addBook(new Book)
+        S->>S: library.addBook(book)
     end
     S->>R: save(ownerId, book)
     R-->>S: Book
     S-->>UI: Book
-    UI-->>U: show on TBR/Owned or Wanted
+    UI-->>U: shown on its shelf
