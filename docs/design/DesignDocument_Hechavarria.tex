@@ -547,12 +547,14 @@ Show the book on TBR / Owned or Wanted
 
 \subsection{Data Detailed Design}
 
-\begin{figure}[htbp]
+\begin{landscape}
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth, height=0.62\textheight, keepaspectratio]{figures/data-model.png}
+\includegraphics[width=\linewidth, height=0.85\textheight, keepaspectratio]{figures/data-model.png}
 \caption{Local data model (SQLite)}
 \label{fig:data_model}
 \end{figure}
+\end{landscape}
 
 Figure~\ref{fig:data_model} shows the two tables the app stores on the device. On the web the same data is kept as JSON in browser storage with the same field names.
 
