@@ -14,4 +14,6 @@ export { MoveBookToShelfUseCase } from "./moveBook";
 export { ScanBookUseCase } from "./scanBook";
 export type { ScanChoices } from "./scanBook";
 export { SetReadingStatusUseCase } from "./setReadingStatus";
+export { SyncLibraryUseCase } from "./syncLibrary";
+export type { SyncReport } from "./syncLibrary";
 export { UseCases } from "./useCases";

@@ -245,21 +245,24 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
     });
   }
 
+  // A version replaces the stored row only if it is newer, so a change made
+  // while a sync was running is never overwritten by an older copy.
   async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
     return this.enqueue(async () => {
       for (const version of versions) {
-        await this.upsert(BookRowMapper.fromVersion(ownerId, version));
+        await this.upsert(BookRowMapper.fromVersion(ownerId, version), "WHERE excluded.updated_at > books.updated_at");
       }
     });
   }
 
-  // One row in, by (owner, ISBN). Every value is a bound parameter; only the
-  // fixed column names are spliced into the SQL.
-  private async upsert(row: BookRow): Promise<void> {
+  // One row in, by (owner, ISBN), optionally only when `condition` holds. Every
+  // value is a bound parameter; only fixed column names and clauses are spliced in.
+  private async upsert(row: BookRow, condition = ""): Promise<void> {
     await this.db.runAsync(
       `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")})
        VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")})
-       ON CONFLICT (owner_id, isbn) DO UPDATE SET ${BOOK_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+       ON CONFLICT (owner_id, isbn) DO UPDATE SET ${BOOK_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}
+       ${condition}`,
       [row.ownerId, row.isbn, ...SqliteBookRepository.values(row)],
     );
   }

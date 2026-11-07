@@ -62,7 +62,8 @@ export type BookVersion = { book: Book; updatedAt: number; deletedAt: number | n
 /** The local store's sync side: every version for an owner, tombstones included. */
 export interface SyncStore {
   versions(ownerId: string): Promise<BookVersion[]>;
-  // Stores these versions exactly as given: their timestamps are kept, not renewed.
+  // Stores each version as given (timestamps kept, not renewed), but only where
+  // it is newer than the stored copy of that book.
   applyVersions(ownerId: string, versions: BookVersion[]): Promise<void>;
 }
 

@@ -342,6 +342,17 @@ describe.each(localStores)("SyncStore contract: %s", (_name, open) => {
     ]);
     expect(await store.versions("local")).toEqual([]);
   });
+
+  test("an older version never replaces a newer one (a change made while sync was running)", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    await store.save("local", new Book({ ...FOX, shelf: Shelf.WANTED })); // changed at 1000
+    await store.applyVersions("local", [
+      { book: FULL_BOOK(), updatedAt: 500, deletedAt: null },
+      { book: FULL_BOOK(), updatedAt: 1000, deletedAt: 1000 },
+    ]);
+    expect(await store.versions("local")).toMatchObject([{ updatedAt: 1000, deletedAt: null, book: { shelf: Shelf.WANTED } }]);
+  });
 });
 
 // --- One key per book: ISBN-10 rows saved by older builds ---

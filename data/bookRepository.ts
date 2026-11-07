@@ -84,8 +84,15 @@ export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStor
     return this.books.filter((row) => row.ownerId === ownerId).map(BookRowMapper.toVersion);
   }
 
+  // A version replaces the stored row only if it is newer, so a change made
+  // while a sync was running is never overwritten by an older copy.
   async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
-    versions.forEach((version) => this.put(BookRowMapper.fromVersion(ownerId, version)));
+    for (const version of versions) {
+      const stored = this.find(ownerId, version.book.isbn);
+      if (!stored || version.updatedAt > stored.updatedAt) {
+        this.put(BookRowMapper.fromVersion(ownerId, version));
+      }
+    }
   }
 
   private find(ownerId: string, isbn: string): BookRow | undefined {
