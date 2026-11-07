@@ -4,7 +4,7 @@
  */
 export { AccountError, BookSourceUnavailableError, SyncUnavailableError } from "./ports";
 export type { Account } from "./ports";
-export { AccountUseCase, AccountUseCases, ResetPasswordUseCase, SignInUseCase, SignOutUseCase, SignUpUseCase } from "./account";
+export { AccountUseCase, AccountUseCases, SignInUseCase, SignOutUseCase, SignUpUseCase } from "./account";
 export { ChangeCoverUseCase } from "./changeCover";
 export { DeleteBookUseCase } from "./deleteBook";
 export { FillMissingFactsUseCase } from "./fillMissingFacts";

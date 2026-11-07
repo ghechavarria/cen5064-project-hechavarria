@@ -44,20 +44,6 @@ class FakeAuth implements SupabaseAuth {
     this.emit();
     return { error: this.failure };
   }
-  async resetPasswordForEmail(email: string) {
-    this.calls.push(`reset ${email}`);
-    return { error: this.failure };
-  }
-  async verifyOtp(params: { email: string; token: string; type: "recovery" }) {
-    if (params.token !== "123456") {
-      return { data: { user: null }, error: { message: "Token has expired or is invalid", code: "otp_expired", status: 403 } };
-    }
-    return this.answer("verifyOtp", { user: this.signInAs(GRACE).user });
-  }
-  async updateUser(attributes: { password: string }) {
-    this.password = attributes.password;
-    return this.answer("updateUser", { user: this.session?.user ?? null });
-  }
   onAuthStateChange(callback: (event: string, session: { user: SupabaseUser } | null) => void) {
     this.listeners.push(callback);
     return { data: { subscription: { unsubscribe: () => (this.listeners = this.listeners.filter((l) => l !== callback)) } } };
@@ -98,13 +84,10 @@ describe("SupabaseAccounts", () => {
     expect(await new SupabaseAccounts(auth).signUp("grace@example.com", "correct horse")).toBeNull();
   });
 
-  test("a wrong password or code is explained in plain words", async () => {
+  test("a wrong password is explained in plain words", async () => {
     const accounts = new SupabaseAccounts(new FakeAuth());
     await expect(accounts.signIn("grace@example.com", "wrong")).rejects.toThrow(
       new AccountError("That email and password don't match an account."),
-    );
-    await expect(accounts.resetPassword("grace@example.com", "000000", "new password")).rejects.toThrow(
-      new AccountError("That code is wrong or has expired. Ask for a new one."),
     );
   });
 
@@ -121,18 +104,6 @@ describe("SupabaseAccounts", () => {
     await expect(accounts.signUp("grace@example.com", "correct horse")).rejects.toThrow(
       new AccountError("Something went wrong with your account. Try again."),
     );
-  });
-
-  test("a reset code from the email signs in and sets the new password", async () => {
-    const auth = new FakeAuth();
-    const accounts = new SupabaseAccounts(auth);
-    await accounts.sendResetCode("grace@example.com");
-    expect(await accounts.resetPassword("grace@example.com", "123456", "brand new pass")).toEqual({
-      id: "user-1",
-      email: "grace@example.com",
-    });
-    expect(auth.calls).toEqual(["reset grace@example.com", "verifyOtp", "updateUser"]);
-    expect(auth.password).toBe("brand new pass");
   });
 
   test("listeners hear sign-in and sign-out until they unsubscribe", async () => {

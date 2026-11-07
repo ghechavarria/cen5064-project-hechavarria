@@ -12,7 +12,7 @@ import { Account, AccountError, AccountUseCases, SyncUnavailableError } from "..
 import { Observable } from "./observable";
 
 /** Which form the screen shows when nobody is signed in. */
-export type AccountForm = "signIn" | "signUp" | "forgot" | "reset";
+export type AccountForm = "signIn" | "signUp";
 
 /** off: not signed in; syncing; synced; waiting: offline, the phone's copy syncs later. */
 export type SyncStatus = "off" | "syncing" | "synced" | "waiting";
@@ -24,7 +24,6 @@ export type AccountState = {
   form: AccountForm;
   email: string;
   password: string;
-  code: string;
   busy: boolean;
   notice: { text: string; tone: "info" | "danger" } | null;
   sync: SyncStatus;
@@ -53,7 +52,6 @@ export class AccountModel extends Observable<AccountState> {
       form: "signIn",
       email: "",
       password: "",
-      code: "",
       busy: false,
       notice: null,
       sync: "off",
@@ -90,8 +88,6 @@ export class AccountModel extends Observable<AccountState> {
     const labels: Record<AccountForm, string> = {
       signIn: "Sign in",
       signUp: "Create account",
-      forgot: "Email me a code",
-      reset: "Set new password",
     };
     return labels[this.getState().form];
   }
@@ -130,7 +126,7 @@ export class AccountModel extends Observable<AccountState> {
   // --- Form inputs ---
 
   showForm(form: AccountForm): void {
-    this.setState({ form, notice: null, code: "", password: "" });
+    this.setState({ form, notice: null, password: "" });
   }
 
   setEmail(email: string): void {
@@ -141,10 +137,6 @@ export class AccountModel extends Observable<AccountState> {
     this.setState({ password });
   }
 
-  setCode(code: string): void {
-    this.setState({ code });
-  }
-
   dismissNotice(): void {
     this.setState({ notice: null });
   }
@@ -153,7 +145,7 @@ export class AccountModel extends Observable<AccountState> {
 
   /** The main button: does what the form on screen is for. */
   submit(): Promise<void> {
-    const { form, email, password, code } = this.getState();
+    const { form, email, password } = this.getState();
     return this.act(async (useCases) => {
       switch (form) {
         case "signIn":
@@ -166,12 +158,6 @@ export class AccountModel extends Observable<AccountState> {
           this.setState({ form: "signIn", password: "" });
           return this.notify("Check your email and confirm your account, then sign in here.");
         }
-        case "forgot":
-          await useCases.resetPassword.sendCode(email);
-          this.setState({ form: "reset", password: "", code: "" });
-          return this.notify(`We emailed a code to ${email.trim()}. Enter it with a new password.`);
-        case "reset":
-          return this.signedIn(useCases, await useCases.resetPassword.execute(email, code, password));
       }
     });
   }
@@ -201,10 +187,10 @@ export class AccountModel extends Observable<AccountState> {
 
   // --- Private helpers ---
 
-  // Sign-in, sign-up and reset all end here: move this phone's books into the
+  // Sign-in and sign-up both end here: move this phone's books into the
   // account and sync, then show that account's library.
   private async signedIn(useCases: AccountUseCases, account: Account): Promise<void> {
-    this.setState({ sync: "syncing", password: "", code: "" });
+    this.setState({ sync: "syncing", password: "" });
     try {
       await useCases.sync.signedIn(account.id, this.deviceOwnerId);
       this.setState({ sync: "synced" });

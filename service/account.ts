@@ -1,8 +1,7 @@
 /**
  * Service: the account use cases (core feature 4, ADR-012): sign up, sign in,
- * sign out, and reset a forgotten password with a code sent by email. Each one
- * checks its input in the domain (Credentials) before any network call, then
- * goes through the Accounts port. AccountUseCases builds them all, plus sync.
+ * and sign out. Each one checks its input in the domain (Credentials) before
+ * any network call, then goes through the Accounts port. AccountUseCases builds them all, plus sync.
  */
 import { Credentials } from "../domain";
 import { Account, Accounts, BookRepository, LibraryBackup, SyncStore } from "./ports";
@@ -34,24 +33,11 @@ export class SignOutUseCase extends AccountUseCase {
   }
 }
 
-export class ResetPasswordUseCase extends AccountUseCase {
-  sendCode(email: string): Promise<void> {
-    return this.accounts.sendResetCode(Credentials.email(email));
-  }
-
-  // The code signs the person in, so this ends signed in with the new password.
-  execute(email: string, code: string, newPassword: string): Promise<Account> {
-    const credentials = Credentials.parse(email, newPassword);
-    return this.accounts.resetPassword(credentials.email, Credentials.resetCode(code), credentials.password);
-  }
-}
-
 /** Every account use case and library sync, built once from their ports (like UseCases). */
 export class AccountUseCases {
   readonly signUp: SignUpUseCase;
   readonly signIn: SignInUseCase;
   readonly signOut: SignOutUseCase;
-  readonly resetPassword: ResetPasswordUseCase;
   readonly sync: SyncLibraryUseCase;
 
   constructor(
@@ -63,7 +49,6 @@ export class AccountUseCases {
     this.signUp = new SignUpUseCase(accounts);
     this.signIn = new SignInUseCase(accounts);
     this.signOut = new SignOutUseCase(accounts);
-    this.resetPassword = new ResetPasswordUseCase(accounts);
     this.sync = new SyncLibraryUseCase(repository, store, backup);
   }
 }

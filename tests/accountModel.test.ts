@@ -1,7 +1,7 @@
 /**
  * Tests: the Account screen's view model (AccountModel) together with
  * LibraryAppModel, driven like a person would, with no React or network:
- * sign up, sign in, wrong passwords, a forgotten password, signing out, a
+ * sign up, sign in, wrong passwords, signing out, a
  * session that ends on its own, syncing after a change, books arriving from
  * another phone, and an app with no Supabase settings.
  */
@@ -75,21 +75,6 @@ describe("Account tab", () => {
     await signIn(account);
     expect(account.getState()).toMatchObject({ form: "signIn", account: null });
     expect(account.getState().notice?.text).toBe("Check your email and confirm your account, then sign in here.");
-  });
-
-  test("a forgotten password: email a code, then the code and a new password sign in", async () => {
-    const accounts = new FakeAccounts();
-    const { account } = await phone(accounts);
-    account.showForm("forgot");
-    account.setEmail("grace@example.com");
-    await account.submit();
-    expect(account.getState().form).toBe("reset");
-    expect(account.submitLabel).toBe("Set new password");
-    account.setCode("123456");
-    account.setPassword("brand new pass");
-    await account.submit();
-    expect(account.getState().account?.id).toBe("user-1");
-    expect(accounts.calls).toEqual(["sendResetCode grace@example.com", "resetPassword grace@example.com 123456 brand new pass"]);
   });
 
   test("signing out, or a session ending on its own, shows this phone's own library again", async () => {

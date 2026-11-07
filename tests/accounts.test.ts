@@ -24,26 +24,13 @@ describe("Account use cases", () => {
     expect(accounts.calls).toEqual(["signUp grace@example.com correct horse", "signOut", "signIn grace@example.com correct horse"]);
   });
 
-  test("a bad email, short password or malformed code never reaches the account service", async () => {
+  test("a bad email or a short password never reaches the account service", async () => {
     const { accounts, useCases } = accountUseCases();
     expect(() => useCases.signIn.execute("grace", "correct horse")).toThrow(InvalidCredentialsError);
     expect(() => useCases.signUp.execute("grace@example.com", "short")).toThrow(InvalidCredentialsError);
-    expect(() => useCases.resetPassword.sendCode("not an email")).toThrow(InvalidCredentialsError);
-    expect(() => useCases.resetPassword.execute("grace@example.com", "12ab", "correct horse")).toThrow(
-      new InvalidCredentialsError("Enter the code from the email."),
-    );
     expect(accounts.calls).toEqual([]);
   });
 
-  test("a forgotten password: a code is emailed, then the code and a new password sign in", async () => {
-    const { accounts, useCases } = accountUseCases();
-    await useCases.resetPassword.sendCode("grace@example.com");
-    expect(await useCases.resetPassword.execute("grace@example.com", " 123 456 ", "brand new pass")).toEqual({
-      id: "user-1",
-      email: "grace@example.com",
-    });
-    expect(accounts.calls).toEqual(["sendResetCode grace@example.com", "resetPassword grace@example.com 123456 brand new pass"]);
-  });
 });
 
 describe("Credentials", () => {

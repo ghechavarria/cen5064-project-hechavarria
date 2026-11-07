@@ -1,7 +1,6 @@
 /**
  * Component: AccountPanel — the Account tab (core feature 4). Signed out, it
- * shows the form AccountModel is on (sign in, create an account, email a reset
- * code, set a new password); signed in, it shows who is signed in with Sync now
+ * shows the form AccountModel is on (sign in, or create an account); signed in, it shows who is signed in with Sync now
  * and Sign out. It only renders AccountModel's state and forwards taps to it.
  */
 import { Text, View } from "react-native";
@@ -45,18 +44,15 @@ function SignedIn({ model, state }: { model: AccountModel; state: AccountState }
 const TITLES: Record<AccountForm, string> = {
   signIn: "Sign in",
   signUp: "Create an account",
-  forgot: "Forgot your password?",
-  reset: "Set a new password",
 };
 
 function SignedOut({ model, state }: { model: AccountModel; state: AccountState }) {
   const { form } = state;
   const submit = () => void model.submit();
-  const newPassword = form === "signUp" || form === "reset";
+  const newPassword = form === "signUp";
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>{TITLES[form]}</Text>
-      {form === "forgot" ? <Text style={styles.body}>We'll email you a code to set a new password.</Text> : null}
       <Field label="Email">
         <TextField
           value={state.email}
@@ -67,46 +63,27 @@ function SignedOut({ model, state }: { model: AccountModel; state: AccountState 
           autoComplete="email"
           keyboardType="email-address"
           textContentType="emailAddress"
-          returnKeyType={form === "forgot" ? "send" : "next"}
-          onSubmitEditing={form === "forgot" ? submit : undefined}
+          returnKeyType="next"
         />
       </Field>
-      {form === "reset" ? (
-        <Field label="Code from the email">
-          <TextField
-            value={state.code}
-            onChangeText={(code) => model.setCode(code)}
-            placeholder="123456"
-            accessibilityLabel="Code from the email"
-            keyboardType="number-pad"
-            autoComplete="one-time-code"
-            textContentType="oneTimeCode"
-          />
-        </Field>
-      ) : null}
-      {form !== "forgot" ? (
-        <Field label={newPassword ? "New password (at least 8 characters)" : "Password"}>
-          <TextField
-            value={state.password}
-            onChangeText={(password) => model.setPassword(password)}
-            accessibilityLabel="Password"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete={newPassword ? "new-password" : "current-password"}
-            textContentType={newPassword ? "newPassword" : "password"}
-            returnKeyType="go"
-            onSubmitEditing={submit}
-          />
-        </Field>
-      ) : null}
+      <Field label={newPassword ? "New password (at least 8 characters)" : "Password"}>
+        <TextField
+          value={state.password}
+          onChangeText={(password) => model.setPassword(password)}
+          accessibilityLabel="Password"
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete={newPassword ? "new-password" : "current-password"}
+          textContentType={newPassword ? "newPassword" : "password"}
+          returnKeyType="go"
+          onSubmitEditing={submit}
+        />
+      </Field>
       <Notice state={state} />
       <Button label={state.busy ? "One moment…" : model.submitLabel} onPress={submit} disabled={state.busy} />
       <View style={styles.links}>
         {form === "signIn" ? (
-          <>
-            <Link label="Create an account" onPress={() => model.showForm("signUp")} />
-            <Link label="Forgot password?" onPress={() => model.showForm("forgot")} />
-          </>
+          <Link label="Create an account" onPress={() => model.showForm("signUp")} />
         ) : (
           <Link label="Back to sign in" onPress={() => model.showForm("signIn")} />
         )}

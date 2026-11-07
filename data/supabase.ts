@@ -25,9 +25,6 @@ export interface SupabaseAuth {
   signUp(credentials: { email: string; password: string }): Answer<{ user: SupabaseUser | null; session: SessionShape | null }>;
   signInWithPassword(credentials: { email: string; password: string }): Answer<{ user: SupabaseUser | null }>;
   signOut(): Promise<{ error: SupabaseError | null }>;
-  resetPasswordForEmail(email: string): Promise<{ error: SupabaseError | null }>;
-  verifyOtp(params: { email: string; token: string; type: "recovery" }): Answer<{ user: SupabaseUser | null }>;
-  updateUser(attributes: { password: string }): Answer<{ user: SupabaseUser | null }>;
   onAuthStateChange(callback: (event: string, session: SessionShape | null) => void): {
     data: { subscription: { unsubscribe(): void } };
   };

@@ -84,9 +84,6 @@ export interface Accounts {
   signUp(email: string, password: string): Promise<Account | null>;
   signIn(email: string, password: string): Promise<Account>;
   signOut(): Promise<void>;
-  // Password reset by a 6-digit code sent by email (links in emails can't reopen Expo Go).
-  sendResetCode(email: string): Promise<void>;
-  resetPassword(email: string, code: string, newPassword: string): Promise<Account>;
   // Called when the session changes elsewhere (e.g. it expires); returns an unsubscribe.
   onChange(listener: (account: Account | null) => void): () => void;
 }

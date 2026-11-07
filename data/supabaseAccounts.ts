@@ -15,8 +15,6 @@ const MESSAGES: Record<string, string> = {
   email_exists: "An account with that email already exists. Sign in instead.",
   email_address_invalid: "Enter a valid email address.",
   weak_password: "Choose a stronger password: at least 8 characters and not a common one.",
-  same_password: "Choose a password you haven't used for this account before.",
-  otp_expired: "That code is wrong or has expired. Ask for a new one.",
   over_email_send_rate_limit: "Too many emails were sent. Wait a few minutes and try again.",
   over_request_rate_limit: "Too many tries. Wait a minute and try again.",
   signup_disabled: "New accounts are turned off for this app.",
@@ -48,18 +46,6 @@ export class SupabaseAccounts implements Accounts {
 
   async signOut(): Promise<void> {
     SupabaseAccounts.check(await this.call(() => this.auth.signOut()));
-  }
-
-  // The reset email carries a 6-digit code (a link could not reopen the app in Expo Go).
-  async sendResetCode(email: string): Promise<void> {
-    SupabaseAccounts.check(await this.call(() => this.auth.resetPasswordForEmail(email)));
-  }
-
-  // The code signs the person in; the new password is then set on that session.
-  async resetPassword(email: string, code: string, newPassword: string): Promise<Account> {
-    SupabaseAccounts.check(await this.call(() => this.auth.verifyOtp({ email, token: code, type: "recovery" })));
-    const { data } = SupabaseAccounts.check(await this.call(() => this.auth.updateUser({ password: newPassword })));
-    return SupabaseAccounts.signedIn(data.user);
   }
 
   onChange(listener: (account: Account | null) => void): () => void {
@@ -121,14 +107,6 @@ export class UnconfiguredAccounts implements Accounts {
   }
 
   async signOut(): Promise<void> {}
-
-  async sendResetCode(): Promise<void> {
-    throw UnconfiguredAccounts.notSetUp();
-  }
-
-  async resetPassword(): Promise<Account> {
-    throw UnconfiguredAccounts.notSetUp();
-  }
 
   onChange(): () => void {
     return () => undefined;

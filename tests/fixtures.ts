@@ -127,13 +127,6 @@ export class FakeAccounts implements Accounts {
     this.calls.push("signOut");
     this.become(null);
   }
-  async sendResetCode(email: string): Promise<void> {
-    this.calls.push(`sendResetCode ${email}`);
-  }
-  async resetPassword(email: string, code: string, newPassword: string): Promise<Account> {
-    this.calls.push(`resetPassword ${email} ${code} ${newPassword}`);
-    return this.become({ id: "user-1", email });
-  }
   onChange(listener: (account: Account | null) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
