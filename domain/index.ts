@@ -4,6 +4,7 @@
  */
 export { AcquisitionRecord, Gift, Purchase } from "./acquisition";
 export { Book } from "./book";
+export { Credentials } from "./credentials";
 export type { BookFacts, BookProps } from "./book";
 export { Acquisition, BookFormat, ReadingStatus, Shelf } from "./enums";
 export { Isbn } from "./isbn";
