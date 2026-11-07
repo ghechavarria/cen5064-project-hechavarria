@@ -139,6 +139,40 @@ October 10, 2026
 
 \newpage
 
+\section*{Key Design Decisions}
+\addcontentsline{toc}{section}{Key Design Decisions}
+
+MyHomeLib is a phone app for cataloging a home library by ISBN. The decisions that shape it, each recorded as an Architecture Decision Record (ADR) in \texttt{docs/adr/}:
+
+\medskip
+\noindent
+\begin{tabular}{|L{4.2cm}|L{9.2cm}|L{1.6cm}|}
+\hline
+\textbf{Decision} & \textbf{What and why} & \textbf{ADR} \\
+\hline
+Four-tier modular monolith & One TypeScript codebase in four folders: Presentation $\rightarrow$ Service $\rightarrow$ Domain; Data implements the Service's ports and is wired in only by \texttt{bootstrap.ts}. The rules can be tested without a phone, and storage or book sources can change without touching them. Automated tests enforce the dependency rule. & 001, 009 \\
+\hline
+Expo Go on the phone & The review partner can run it without a Mac or a paid account. The browser build is a limited fallback (no camera). & 005 \\
+\hline
+SQLite on the device & One data store; the browser build keeps the same rows as JSON behind the same port, translated only by \texttt{BookRowMapper}. & 002 \\
+\hline
+Official book APIs, exact edition & Open Library, plus optional Google Books, asked together, merged edition-first and cached; no scraping. The owner confirms the cover that matches their copy. & 003, 004, 006 \\
+\hline
+Rules live in the domain & \texttt{Book}, \texttt{PersonalLibrary}, \texttt{Purchase} and \texttt{Gift} enforce the rules (a duplicate ISBN adds a copy; an Owned book needs a purchase or a named gift), so no screen can bypass them. & 001 \\
+\hline
+MVVM and a design system & One view-model class holds every screen's state and flow; components only render, with tokens and imported stylesheets. & 007, 008 \\
+\hline
+Device services as one family & The camera and haptic feedback come from one family per platform (Abstract Factory), chosen once. & 011 \\
+\hline
+Validate at the edges & A mistyped ISBN is refused before any network call; unreachable sources time out with one clear error; damaged saved data still loads. & 010 \\
+\hline
+\end{tabular}
+
+\medskip
+\noindent\textbf{Scope for the final}, frozen at the midterm check-in: (1) scan a book, (2) shelve it with the rules enforced, (3) browse and manage the library, and (4) Google Account library sync, planned for the second half (Section~\ref{sec:plan}).
+
+\newpage
+
 %==========================================================================
 \section{Introduction}
 
