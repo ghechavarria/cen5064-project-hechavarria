@@ -7,53 +7,12 @@ import { MemoryBookRepository } from "../data/bookRepository";
 import { Credentials } from "../domain";
 import { InvalidCredentialsError } from "../domain/exceptions";
 import { AccountUseCases } from "../service";
-import { Account, Accounts, BookVersion, LibraryBackup } from "../service/ports";
-
-/** Test double for Accounts: records each call (with the values it received) and signs in anyone. */
-class FakeAccounts implements Accounts {
-  readonly configured = true;
-  readonly calls: string[] = [];
-  private account: Account | null = null;
-
-  async current(): Promise<Account | null> {
-    return this.account;
-  }
-  async signUp(email: string, password: string): Promise<Account | null> {
-    this.calls.push(`signUp ${email} ${password}`);
-    return (this.account = { id: "user-1", email });
-  }
-  async signIn(email: string, password: string): Promise<Account> {
-    this.calls.push(`signIn ${email} ${password}`);
-    return (this.account = { id: "user-1", email });
-  }
-  async signOut(): Promise<void> {
-    this.calls.push("signOut");
-    this.account = null;
-  }
-  async sendResetCode(email: string): Promise<void> {
-    this.calls.push(`sendResetCode ${email}`);
-  }
-  async resetPassword(email: string, code: string, newPassword: string): Promise<Account> {
-    this.calls.push(`resetPassword ${email} ${code} ${newPassword}`);
-    return (this.account = { id: "user-1", email });
-  }
-  onChange(): () => void {
-    return () => undefined;
-  }
-}
-
-/** A backup that holds nothing; these tests are about accounts, not sync. */
-class EmptyBackup implements LibraryBackup {
-  async pull(): Promise<BookVersion[]> {
-    return [];
-  }
-  async push(): Promise<void> {}
-}
+import { FakeAccounts, FakeBackup } from "./fixtures";
 
 function accountUseCases() {
   const accounts = new FakeAccounts();
   const store = new MemoryBookRepository();
-  return { accounts, useCases: new AccountUseCases(accounts, store, store, new EmptyBackup()) };
+  return { accounts, useCases: new AccountUseCases(accounts, store, store, new FakeBackup()) };
 }
 
 describe("Account use cases", () => {

@@ -7,11 +7,14 @@
  * no logic of their own.
  *
  * It extends Observable (inheritance) and is composed with a
- * LibraryController (the bridge to the Service use cases).
+ * LibraryController (the bridge to the Service use cases) and, when accounts
+ * are wired in, an AccountModel: the shelves show the signed-in account's
+ * books, and every change to the library asks for a sync (ADR-012).
  */
 import { AcquisitionRecord, Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../../domain";
 import { DomainError } from "../../domain/exceptions";
 import { BookSourceUnavailableError } from "../../service";
+import { AccountModel } from "./accountModel";
 import { CatalogMode } from "./catalog";
 import { CameraUnavailableError, CoverCamera } from "./coverCamera";
 import { DeviceFamily, Feedback } from "./devices";
@@ -20,7 +23,7 @@ import { LibraryController, LibraryView } from "./libraryController";
 import { Observable } from "./observable";
 import { ScanDraft } from "./scanDraft";
 
-export type MenuTab = "tbr" | "owned" | "wanted" | "scan";
+export type MenuTab = "tbr" | "owned" | "wanted" | "scan" | "account";
 type Screen = "main" | "detail";
 export type FlashTone = "info" | "danger";
 
@@ -65,6 +68,7 @@ const TAB_HEADINGS: Record<MenuTab, string> = {
   owned: "Owned",
   wanted: "Wanted",
   scan: "Add a book",
+  account: "Account",
 };
 
 const FLASH_MS = 3000;
@@ -77,11 +81,13 @@ export class LibraryAppModel extends Observable<AppState> {
   private readonly camera: CoverCamera;
   private readonly feedback: Feedback;
 
-  // Both are injected: the app passes the real use cases and this platform's
-  // device family; tests pass memory/fake Data and a fake family.
+  // All injected: the app passes the real use cases, this platform's device
+  // family and the account model; tests pass memory/fake Data and a fake family,
+  // and leave the account out unless they test it.
   constructor(
     private readonly openController: () => Promise<LibraryController>,
     devices: DeviceFamily,
+    private readonly account: AccountModel | null = null,
   ) {
     super({
       ready: false,
@@ -126,6 +132,7 @@ export class LibraryAppModel extends Observable<AppState> {
       owned: `${Labels.count(view.owned.length, "title")} owned`,
       wanted: `${Labels.count(view.wanted.length, "title")} wanted`,
       scan: "Point the camera at the ISBN barcode, or type it below.",
+      account: this.account?.hint ?? "Accounts aren't set up in this copy of the app.",
     };
     return hints[tab];
   }
@@ -178,16 +185,24 @@ export class LibraryAppModel extends Observable<AppState> {
       return;
     }
     this.started = true;
-    this.controller = await this.openController();
-    this.setState({ ready: true, view: await this.controller.view(), busy: true });
+    const controller = await this.openController();
+    this.controller = controller;
+    if (this.account) {
+      await this.account.start();
+      controller.useOwner(this.account.ownerId);
+      this.account.watchOwner((ownerId) => void this.switchOwner(ownerId));
+      this.account.watchLibrary(() => void this.reload());
+    }
+    this.setState({ ready: true, view: await controller.view(), busy: true });
     try {
-      await this.controller.fillMissingFacts();
-      this.setState({ view: await this.controller.view() });
+      await controller.fillMissingFacts();
+      this.setState({ view: await controller.view() });
     } catch {
       /* backfill is best effort */
     } finally {
       this.setState({ busy: false });
     }
+    void this.account?.sync();
   }
 
   dispose(): void {
@@ -239,7 +254,7 @@ export class LibraryAppModel extends Observable<AppState> {
   scan(code: string = this.getState().isbnDraft): Promise<void> {
     return this.run(async (library) => {
       this.setState({ prompt: { kind: "scanConfirm", draft: ScanDraft.from(await library.lookup(code)) } });
-    });
+    }, false);
   }
 
   /** Tap a cover in the confirm popup: the one that matches the owner's copy. */
@@ -471,13 +486,29 @@ export class LibraryAppModel extends Observable<AppState> {
     });
   }
 
+  // Someone signed in or out: show that owner's library from the main screen.
+  private async switchOwner(ownerId: string): Promise<void> {
+    const library = this.controller;
+    if (library) {
+      library.useOwner(ownerId);
+      this.setState({ view: await library.view(), selectedIsbn: null, screen: "main" });
+    }
+  }
+
+  // A sync brought books from another phone.
+  private async reload(): Promise<void> {
+    if (this.controller) {
+      this.setState({ view: await this.controller.view() });
+    }
+  }
+
   /**
    * The one wrapper every action goes through: set busy, close the popup,
    * do the work, reload the view, and turn errors into a flash banner
    * (domain rule messages as a normal notice; an unreachable book source or
-   * anything unexpected in red).
+   * anything unexpected in red). A change to the library is then synced.
    */
-  private async run(work: (library: LibraryController) => Promise<void>): Promise<void> {
+  private async run(work: (library: LibraryController) => Promise<void>, changesLibrary = true): Promise<void> {
     const library = this.controller;
     if (!library) {
       return;
@@ -486,6 +517,9 @@ export class LibraryAppModel extends Observable<AppState> {
     try {
       await work(library);
       this.setState({ view: await library.view() });
+      if (changesLibrary) {
+        void this.account?.sync();
+      }
     } catch (error) {
       if (error instanceof DomainError) {
         this.flash(error.message);

@@ -6,37 +6,12 @@
  */
 import { MemoryBookRepository } from "../data/bookRepository";
 import { Book, Purchase, ReadingStatus, Shelf } from "../domain";
-import { BookVersion, LibraryBackup, SyncUnavailableError } from "../service/ports";
+import { LibraryBackup, SyncUnavailableError } from "../service/ports";
 import { SyncLibraryUseCase } from "../service/syncLibrary";
-import { FOX } from "./fixtures";
+import { FOX, FakeBackup } from "./fixtures";
 
 const ACCOUNT = "user-1";
 const MATILDA = { ...FOX, isbn: "9780142410370", title: "Matilda" };
-
-/** The account's backup in memory; `offline` makes every call fail like a dropped connection. */
-class FakeBackup implements LibraryBackup {
-  private readonly versions = new Map<string, BookVersion[]>();
-  offline = false;
-
-  async pull(ownerId: string): Promise<BookVersion[]> {
-    this.reach();
-    return [...(this.versions.get(ownerId) ?? [])];
-  }
-
-  async push(ownerId: string, versions: BookVersion[]): Promise<void> {
-    this.reach();
-    const kept = (this.versions.get(ownerId) ?? []).filter(
-      (stored) => !versions.some((version) => version.book.isbn === stored.book.isbn),
-    );
-    this.versions.set(ownerId, [...kept, ...versions]);
-  }
-
-  private reach(): void {
-    if (this.offline) {
-      throw new SyncUnavailableError("offline");
-    }
-  }
-}
 
 /** One phone: its own store and clock, syncing to the shared backup. */
 class Phone {
@@ -145,6 +120,19 @@ describe("SyncLibraryUseCase", () => {
       ["Fantastic Mr. Fox", 2],
       ["Matilda", 1],
     ]);
+  });
+
+  test("signing in offline still moves the phone's books into the account, and they upload later", async () => {
+    const backup = new FakeBackup();
+    const phone = new Phone(backup);
+    await phone.at(10).store.save("local", owned(FOX));
+    backup.offline = true;
+    await expect(phone.sync.signedIn(ACCOUNT, "local")).rejects.toBeInstanceOf(SyncUnavailableError);
+    expect(await phone.titles()).toEqual(["Fantastic Mr. Fox"]);
+    expect(await phone.titles("local")).toEqual([]);
+
+    backup.offline = false;
+    expect(await phone.sync.execute(ACCOUNT)).toEqual({ downloaded: 0, uploaded: 1 });
   });
 
   test("each account syncs only its own books", async () => {

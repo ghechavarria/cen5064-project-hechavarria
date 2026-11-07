@@ -8,7 +8,7 @@
  * backup can't be reached, SyncUnavailableError is thrown and nothing is lost;
  * the next sync catches up.
  */
-import { BookRepository, BookVersion, LibraryBackup, SyncStore } from "./ports";
+import { BookRepository, BookVersion, LibraryBackup, SyncStore, SyncUnavailableError } from "./ports";
 
 /** How many books each side received in one sync. */
 export type SyncReport = { downloaded: number; uploaded: number };
@@ -35,8 +35,15 @@ export class SyncLibraryUseCase {
 
   // First sign-in on this phone: the books kept before signing in move into the
   // account. Sync first so the account's books are here, move, then sync the result.
+  // Offline, the books still move (so none seem to vanish) and sync later.
   async signedIn(accountId: string, deviceOwnerId: string): Promise<SyncReport> {
-    await this.execute(accountId);
+    try {
+      await this.execute(accountId);
+    } catch (error) {
+      if (!(error instanceof SyncUnavailableError)) {
+        throw error;
+      }
+    }
     await this.adopt(deviceOwnerId, accountId);
     return this.execute(accountId);
   }

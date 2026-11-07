@@ -41,8 +41,17 @@ export type LookupResult = { metadata: BookMetadata; alreadyInLibrary: boolean }
 export class LibraryController {
   constructor(
     private readonly useCases: UseCases,
-    private readonly ownerId: string,
+    private ownerId: string,
   ) {}
+
+  /** Whose library every call reads and changes: the signed-in account, or this device's own. */
+  get owner(): string {
+    return this.ownerId;
+  }
+
+  useOwner(ownerId: string): void {
+    this.ownerId = ownerId;
+  }
 
   async view(): Promise<LibraryView> {
     return new LibraryView(await this.useCases.loadLibrary.execute(this.ownerId));
