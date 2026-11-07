@@ -59,7 +59,7 @@ Then open **Scan**, allow the camera, and point it at the ISBN barcode on a book
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos.
 
-Tests: `npm test` (146 tests: each core feature end to end, every tier, every user flow through the view model, SQLite and JSON persistence, bad input and network failures, and the architecture rules).
+Tests: `npm test` (151 tests: each core feature end to end, every tier, every user flow through the view model, SQLite and JSON persistence, bad input and network failures, and the architecture rules).
 
 ## Documentation
 
@@ -67,7 +67,8 @@ Tests: `npm test` (146 tests: each core feature end to end, every tier, every us
 |---|---|
 | [`docs/design/DesignDocument_Hechavarria.pdf`](docs/design/DesignDocument_Hechavarria.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. A Word copy ([`DesignDocument_Hechavarria.docx`](docs/design/DesignDocument_Hechavarria.docx)), the LaTeX source (`DesignDocument_Hechavarria.tex`), and the diagram sources sit beside it. |
 | [`docs/code-review.md`](docs/code-review.md) | Study guide: what calls what in plain words, where each class lives and why, and answers to "why this architecture, why Expo Go, why TypeScript". |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–010): one page per decision, with its context and consequences. |
+| [`docs/pattern-map.md`](docs/pattern-map.md) | The five creational patterns checked against this code: one genuine fit (Abstract Factory) and four honest "no fit" lines. |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–011): one page per decision, with its context and consequences. |
 | This README | How to run, the tier table, and the C4 and UML diagrams. |
 
 ## Architecture
@@ -76,7 +77,7 @@ Tests: `npm test` (146 tests: each core feature end to end, every tier, every us
 
 | Tier | Responsibilities in THIS system |
 |------|--------------------------------|
-| Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan**, dark forest theme. TBR is the Owned reading list (Unread / Read). Owned is the full catalog, grouped A–Z, by Author, or by Series, with an A–Z letter rail in every grouping. Wanted is the wish list. Scan uses the phone camera, with a typed-ISBN fallback: confirm and **pick the cover that matches your copy** (or photograph it) → hardcover/paperback (only if no source knew) → Owned/Wanted → purchased/gifted (Owned only) → read/unread; a duplicate ISBN skips straight to adding a copy. Detail: edition facts and binding, read/unread, photograph my cover, shelf moves, delete. **Built MVVM:** `LibraryAppModel` (a class extending `Observable`) holds all screen state and flows; `LibraryController` is its bridge to the use cases; the device camera sits behind the `CoverCamera` interface. React components in `presentation/components/` only render, with every stylesheet in `presentation/styles/`. **Design system:** one theme file of tokens (colors, spacing, type roles in the Outfit font), shared building blocks (`Tappable` for every tap, `TextField`, `BookCover`, `CoverBackdrop`, `Logo`), and Expo Go's own modules for images, gradients, fonts and haptics ([ADR-008](docs/adr/adr-008.md)). Never touches a repository. |
+| Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan**, dark forest theme. TBR is the Owned reading list (Unread / Read). Owned is the full catalog, grouped A–Z, by Author, or by Series, with an A–Z letter rail in every grouping. Wanted is the wish list. Scan uses the phone camera, with a typed-ISBN fallback: confirm and **pick the cover that matches your copy** (or photograph it) → hardcover/paperback (only if no source knew) → Owned/Wanted → purchased/gifted (Owned only) → read/unread; a duplicate ISBN skips straight to adding a copy. Detail: edition facts and binding, read/unread, photograph my cover, shelf moves, delete. **Built MVVM:** `LibraryAppModel` (a class extending `Observable`) holds all screen state and flows; `LibraryController` is its bridge to the use cases; the camera and haptic feedback come from one device family (`PhoneDevices` or `BrowserDevices`, an Abstract Factory chosen once in `App.tsx`; see [docs/pattern-map.md](docs/pattern-map.md)). React components in `presentation/components/` only render, with every stylesheet in `presentation/styles/`. **Design system:** one theme file of tokens (colors, spacing, type roles in the Outfit font), shared building blocks (`Tappable` for every tap, `TextField`, `BookCover`, `CoverBackdrop`, `Logo`), and Expo Go's own modules for images, gradients, fonts and haptics ([ADR-008](docs/adr/adr-008.md)). Never touches a repository. |
 | Service | Orchestration, one class per use case: `LookupIsbnUseCase` (no save), `ScanBookUseCase`, `LoadLibraryUseCase`, `MoveBookToShelfUseCase`, `SetReadingStatusUseCase`, `ChangeCoverUseCase`, `DeleteBookUseCase`, `FillMissingFactsUseCase`. All except the lookup extend the abstract `LibraryUseCase` (shared load → change → save); `ScanBookUseCase` and `FillMissingFactsUseCase` go through `LibraryLookupUseCase`, which adds the book-source lookup. The `UseCases` class builds them all from the two ports. Service never contains SQL, `fetch`, or React. |
 | Domain | `Book` (isbn, title, author, cover, publisher, **format** HARDCOVER/PAPERBACK/UNKNOWN, shelf OWNED/WANTED, readingStatus UNREAD/READ, series, description, published, pageCount, subjects, copyCount, acquisition). TBR is a view of Owned unread/read, not a third exclusive shelf. Every Owned book must be purchased or gifted, whether it is scanned straight into Owned (`PersonalLibrary.addBook`) or moved from Wanted (`Book.moveTo`). |
 | Data | Persistence and the two book sources. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner's books plus a lookup cache; on Expo web / tests, JSON / memory. `BookRowMapper` is the only row ↔ Book translation, and repairs rows saved by older builds or damaged on disk. Rows are unique per owner and ISBN. Book sources: `OpenLibraryIsbnLookup` (no key; edition-first, so cover, publisher, date, pages and binding come from the exact ISBN's record) and `GoogleBooksIsbnLookup` (free key; only accepts the volume listing the scanned ISBN). `MergedIsbnLookup` asks both and keeps every distinct cover as a candidate; `CachingIsbnLookup` caches the result. All HTTP goes through the `Http` class, which times out after 15 s and reports any failure as one `BookSourceUnavailableError`. No bookstore scraping. |
@@ -289,11 +290,33 @@ classDiagram
     }
     class CoverCamera {
         <<interface>>
+        +available: boolean
         +takePhoto() String
     }
+    class Feedback {
+        <<interface>>
+        +selection()
+        +message(failed)
+    }
+    class DeviceFamily {
+        <<interface>>
+        +createCoverCamera() CoverCamera
+        +createFeedback() Feedback
+    }
     LibraryAppModel --|> Observable~State~
+    LibraryAppModel --> DeviceFamily : takes one family
     LibraryAppModel --> CoverCamera : photographs covers
+    LibraryAppModel --> Feedback : ticks and buzzes
+    PhoneDevices ..|> DeviceFamily
+    BrowserDevices ..|> DeviceFamily
+    PhoneDevices --> ExpoCoverCamera : creates
+    PhoneDevices --> HapticFeedback : creates
+    BrowserDevices --> BrowserCoverCamera : creates
+    BrowserDevices --> SilentFeedback : creates
     ExpoCoverCamera ..|> CoverCamera
+    BrowserCoverCamera ..|> CoverCamera
+    HapticFeedback ..|> Feedback
+    SilentFeedback ..|> Feedback
     LibraryAppModel --> ScanDraft : holds while scanning
     LibraryAppModel *-- LibraryController : uses
     LibraryController --> LibraryView : builds
@@ -353,6 +376,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Plain-English walkthrough and the "w
 | [008](docs/adr/adr-008.md) | Design system: theme tokens, one stylesheet per component, shared UI building blocks | accepted |
 | [009](docs/adr/adr-009.md) | Ports and adapters between Service and Data | accepted |
 | [010](docs/adr/adr-010.md) | Validate input and contain failures at the tier edges | accepted |
+| [011](docs/adr/adr-011.md) | Device services as one family per platform (Abstract Factory) | accepted |
 
 The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`docs/design/`](docs/design/).
 
@@ -366,3 +390,4 @@ The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`doc
 - Week 6 (Sep 28): Enforce acquisition requirements when moving Wanted books to Owned #5 issue created, fixed and tested
 - Week 7 (Oct 05): Exact-edition lookup (Google Books + Open Library merged, cover picker, own cover photo, binding question); OOP refactor (classes, MVVM, stylesheet imports); UI design system; Software Design Document v1.0; CI added. Honest note: this week's work was built locally and pushed as one large PR (#8, closes #7) instead of in daily commits. From week 8 on, each issue gets its own branch and smaller commits.
 - Week 8 (Oct 12): Midterm check-in. Scope for the final frozen to 4 core features (adds Google Account library sync, planned for weeks 10–11). Hardening: ISBN check-digit validation with one ISBN-13 key per book, a timeout and one clear error for unreachable book sources, recovery from damaged storage, books unique per owner (ADR-010). Mobile-first run instructions. 145 tests, including one end-to-end test file per core feature.
+- Week 11 (Nov 02): SOLID refactor, Interface Segregation (BookRepository split from IsbnCache, PR #16). Creational pattern map (docs/pattern-map.md): one genuine fit, Abstract Factory for the device services (PhoneDevices / BrowserDevices, ADR-011), and four honest "no fit" lines. 151 tests.

@@ -6,7 +6,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Text, View } from "react-native";
-import { Haptics } from "../device/haptics";
 import { MenuTab } from "../model/libraryAppModel";
 import { useReducedMotion } from "../model/useReducedMotion";
 import { slideSpring } from "../styles/feedback.styles";
@@ -66,12 +65,7 @@ export function MenuBar({
               accessibilityRole="tab"
               accessibilityLabel={tab.label}
               accessibilityState={{ selected: on }}
-              onPress={() => {
-                if (!on) {
-                  Haptics.selection();
-                }
-                onSelect(tab.id);
-              }}
+              onPress={() => onSelect(tab.id)}
               style={styles.item}
             >
               <View style={tab.primary ? styles.primaryIcon : null}>

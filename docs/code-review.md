@@ -14,7 +14,7 @@ flowchart TB
     subgraph P["presentation/  (Presentation tier)"]
         comp["components/ + App.tsx<br/>draw only"]
         model["model/<br/>LibraryAppModel (view model) · LibraryController<br/>ScanDraft · PromptActions · Catalog · AlphabetRail · Labels"]
-        device["device/<br/>ExpoCoverCamera, Haptics"]
+        device["device/<br/>PhoneDevices, BrowserDevices"]
         styles["styles/<br/>one stylesheet per component + theme"]
     end
     subgraph S["service/  (Service tier)"]
@@ -98,8 +98,8 @@ flowchart TB
 | `service/` | One class per use case. Base classes `LibraryUseCase` → `LibraryLookupUseCase`. `UseCases` builds them all. `ports.ts` holds the interfaces. | **Orchestration:** load → apply domain methods → save. It depends on interfaces, so storage and sources can change freely. |
 | `data/` | Repositories (SQLite, JSON, Memory), `BookRowMapper`, book sources (Open Library, Google), decorators (`Merged`, `Caching`), `Http` | **The outside world.** The only place SQL and HTTP exist. |
 | `bootstrap.ts` | `CompositionRoot` | **The only place concrete classes are named:** SQLite vs JSON, Google only if a key exists. |
-| `presentation/model/` | `LibraryAppModel` (all screen state and flows), `LibraryController`, `LibraryView`, `ScanDraft`, `CoverCamera`, `PromptActions`, `Catalog`, `AlphabetRail`, `Labels`, plus the `useObservable` and `useReducedMotion` hooks | **Screen logic as plain classes.** No React, so every flow is unit-tested. |
-| `presentation/device/` | `ExpoCoverCamera`, `Haptics` | Phone hardware: the camera (behind the `CoverCamera` interface) and the vibration motor (tab ticks, error buzz; silent on web). |
+| `presentation/model/` | `LibraryAppModel` (all screen state and flows), `LibraryController`, `LibraryView`, `ScanDraft`, `CoverCamera`, `Feedback` and `DeviceFamily` (the device interfaces), `PromptActions`, `Catalog`, `AlphabetRail`, `Labels`, plus the `useObservable` and `useReducedMotion` hooks | **Screen logic as plain classes.** No React, so every flow is unit-tested. |
+| `presentation/device/` | `PhoneDevices` (`ExpoCoverCamera`, `HapticFeedback`), `BrowserDevices` (a camera that says to use the phone, silent feedback) | **Device families (Abstract Factory):** `App.tsx` picks one, so the camera and the feedback always belong to the same platform. The model only sees the interfaces. |
 | `presentation/components/` + `App.tsx` | Views: `LibraryPrompts`, `CoverPicker`, `BookDetail`, `OwnedCatalog`, `LetterRail`, `ScreenHeader` (logo or round Back, title, hint, fading rule), `MenuBar` (sliding pill, Scan as the mint primary action), `Logo` (mark + wordmark, in the header and on the loading screen), `TextField` (the one text input, with a focus ring), `CoverBackdrop` (a cover's blurred halo: behind the detail cover, each series fan, and the scan popup's cover picker), `BookCover` (art + spine + shadow), … images through `Art` (expo-image: cached on the device, fading in), all built on `Tappable` (the one pressable: Android ripple, iOS spring press-in); list cards enter through `Reveal` (fade-and-rise stagger that stands still under the phone's Reduce Motion, via the `useReducedMotion` hook) | **Drawing only:** read state, call model methods. |
 | `presentation/styles/` | `<name>.styles.ts` per component, plus `theme.ts` (the design tokens: colors, spacing, radii, type scale, icon sizes, the shared card, panel and cover surfaces, and the forest's top/bottom fades), `fonts.ts` (the bundled Outfit family in four weights, loaded once in `App.tsx`; `theme.text` gives each role its weight: display, title, ui, strong, body) and `feedback.styles.ts` (the shared motion values: press spring, ripple, entrance timing) | **Stylesheets are imports**, and every value comes from a token, so one change restyles the whole app. |
 | `tests/` | One test file per tier, plus `architecture.test.ts` and `fixtures.ts` | They prove the rules and enforce the layout. |
@@ -231,10 +231,11 @@ classDiagram
 
     class Observable { <<abstract>> #setState() }
     Observable <|-- LibraryAppModel
-    class CoverCamera { <<interface>> }
-    CoverCamera <|.. ExpoCoverCamera
+    class DeviceFamily { <<interface>> }
+    DeviceFamily <|.. PhoneDevices
+    DeviceFamily <|.. BrowserDevices
     LibraryAppModel --> LibraryController
-    LibraryAppModel --> CoverCamera
+    LibraryAppModel --> DeviceFamily
     class CatalogGrouping { <<abstract>> #sectionOf()* }
     CatalogGrouping <|-- TitleLetterGrouping
     CatalogGrouping <|-- AuthorGrouping
@@ -253,11 +254,11 @@ classDiagram
 |---|---|---|
 | Classes bundle data + behavior | Every concept is a class with private state and the methods that change it | `Book`, `PersonalLibrary`, every use case, every repository, `LibraryAppModel` |
 | Encapsulation | Fields are private; they change only through rule-checking methods | `Book.acquire()` / `moveTo()` |
-| Abstraction | Abstract base classes and interfaces | `AcquisitionRecord`, `LibraryUseCase`, `Observable`; `BookRepository`, `IsbnLookup`, `CoverCamera` |
+| Abstraction | Abstract base classes and interfaces | `AcquisitionRecord`, `LibraryUseCase`, `Observable`; `BookRepository`, `IsbnLookup`, `IsbnCache`, `CoverCamera`, `Feedback`, `DeviceFamily` |
 | Inheritance (two levels) | Shared code lives once, in the parent | `ScanBookUseCase` → `LibraryLookupUseCase` → `LibraryUseCase` |
 | Polymorphism / overriding | One call, behavior chosen by the class | `acquisition.describe()`; `Gift.giftedBy`; `TitleLetterGrouping.order()` |
 | Composition | Built from parts | `PersonalLibrary` has Books; the model has a controller and a camera |
-| Design patterns | — | Template Method, Strategy, Decorator, Factory, Repository + Data Mapper, Observer / MVVM, Dependency Injection, Composition Root |
+| Design patterns | — | Template Method, Strategy, Decorator, Abstract Factory (device families), Simple Factory (`UseCases`, `AcquisitionRecord.restore`), Repository + Data Mapper, Observer / MVVM, Dependency Injection, Composition Root |
 | Modularity | One class per file, folders by tier and role, tiers talk through interfaces | §1, §3 |
 | No duplication | Each piece of logic has one home: `updateBook`, `tryFillFacts`, `MergedIsbnLookup`, `Http`, `BookRowMapper`, `UseCases`, `run()`, `PromptActions`, `Labels`, `theme.ts`, `fonts.ts`, `Tappable`, `Reveal`, `fixtures.ts` | — |
 | Stylesheets are imports | Each component imports `styles/<name>.styles.ts`; runtime sizes are small functions in that file. No color, font size or icon size is typed outside `theme.ts`. | Enforced by `architecture.test.ts` |
@@ -276,7 +277,7 @@ classDiagram
 | Where is the business logic? | `domain/` (`Book`, `PersonalLibrary`, `Gift.isComplete`). Use cases only orchestrate. |
 | Why can't Wanted jump to Owned? | `Book.moveTo(OWNED)` → `assertAcquired()` → `NotAcquiredError`. |
 | How would you swap the database? | Write a class that implements `BookRepository` and pick it in `CompositionRoot`. Nothing else changes. |
-| How do you test without a phone or network? | Inject `MemoryBookRepository`, `FakeIsbnLookup` and `FakeCoverCamera` (`tests/fixtures.ts`). Screen flows run in `appModel.test.ts`. |
+| How do you test without a phone or network? | Inject `MemoryBookRepository`, `FakeIsbnLookup` and `FakeDevices` (a fake camera and feedback; `tests/fixtures.ts`). Screen flows run in `appModel.test.ts`. |
 | Why two book sources? | Open Library is free but often has the wrong cover for a printing; Google often has the right one (ADR-006). |
 | Why ask which cover is yours? | One ISBN can carry different cover designs (print-on-demand reprints), so only you can confirm. |
 | Why is the view model separate from the controller? | The model owns the screen (popups, flash, busy); the controller adapts intents to use cases. Each is tested alone. |
@@ -284,9 +285,10 @@ classDiagram
 | What if the book sources are down or slow? | `Http` gives up after 15 s, and every network failure (offline, 429, 500, broken JSON) becomes one `BookSourceUnavailableError`. One source failing is fine; all failing shows a red "Couldn't reach the book sources" banner. |
 | What if the saved library is damaged? | `BookRowMapper.withDefaults` repairs each row (unknown values fall back to safe defaults), rows with no owner or ISBN are skipped, and an unreadable browser save is backed up instead of crashing the app. |
 | Can two owners have the same book? | Yes: every repository keys rows by owner and ISBN together, and SQLite enforces `UNIQUE (owner_id, isbn)`. |
+| Which creational patterns does it use? | One, where it removes a real problem: **Abstract Factory** for the device services (`DeviceFamily`: `PhoneDevices` / `BrowserDevices`), so the camera and the feedback always match the platform and the "phone or browser?" check lives in one place. The other four have honest "no fit" lines in [`pattern-map.md`](pattern-map.md). |
 | What isn't built yet? | Core feature 4, Google Account library sync (planned for weeks 10–11); until then the app uses one owner (`"local"`). Also not handled: the printing number (reprints share an ISBN). The camera is checked by hand on a phone. |
 
-`npm test` runs **146 tests** in 10 files: one or more per tier, the repository contract against memory, JSON and a real SQLite database (Node's built-in `node:sqlite`), the failure cases, one file that drives each core feature end to end (`coreFeatures.test.ts`), and the architecture rules.
+`npm test` runs **151 tests** in 11 files: one or more per tier, the repository contract against memory, JSON and a real SQLite database (Node's built-in `node:sqlite`), the failure cases, one file that drives each core feature end to end (`coreFeatures.test.ts`), and the architecture rules.
 
 
 ---

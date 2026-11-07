@@ -14,6 +14,7 @@ import { DomainError } from "../../domain/exceptions";
 import { BookSourceUnavailableError } from "../../service";
 import { CatalogMode } from "./catalog";
 import { CameraUnavailableError, CoverCamera } from "./coverCamera";
+import { DeviceFamily, Feedback } from "./devices";
 import { Labels } from "./labels";
 import { LibraryController, LibraryView } from "./libraryController";
 import { Observable } from "./observable";
@@ -73,11 +74,14 @@ export class LibraryAppModel extends Observable<AppState> {
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
 
-  // Both are injected: the app passes the real use cases and the device camera,
-  // tests pass memory/fake Data and a fake camera.
+  private readonly camera: CoverCamera;
+  private readonly feedback: Feedback;
+
+  // Both are injected: the app passes the real use cases and this platform's
+  // device family; tests pass memory/fake Data and a fake family.
   constructor(
     private readonly openController: () => Promise<LibraryController>,
-    private readonly camera: CoverCamera,
+    devices: DeviceFamily,
   ) {
     super({
       ready: false,
@@ -93,6 +97,9 @@ export class LibraryAppModel extends Observable<AppState> {
       busy: false,
       prompt: null,
     });
+    // One family, so the camera and the feedback always belong to the same platform.
+    this.camera = devices.createCoverCamera();
+    this.feedback = devices.createFeedback();
   }
 
   // --- Derived values ---
@@ -121,6 +128,11 @@ export class LibraryAppModel extends Observable<AppState> {
       scan: "Point the camera at the ISBN barcode, or type it below.",
     };
     return hints[tab];
+  }
+
+  /** Whether this device family has a camera; without one, Scan offers typing only. */
+  get cameraAvailable(): boolean {
+    return this.camera.available;
   }
 
   /** The camera only reads barcodes when nothing else is going on. */
@@ -185,14 +197,17 @@ export class LibraryAppModel extends Observable<AppState> {
   // --- Navigation and inputs ---
 
   selectTab(tab: MenuTab): void {
+    this.tickIfChanged(tab, this.getState().tab);
     this.setState({ tab, screen: "main" });
   }
 
   showReading(reading: ReadingStatus): void {
+    this.tickIfChanged(reading, this.getState().reading);
     this.setState({ reading });
   }
 
   setCatalogMode(catalogMode: CatalogMode): void {
+    this.tickIfChanged(catalogMode, this.getState().catalogMode);
     this.setState({ catalogMode });
   }
 
@@ -522,8 +537,16 @@ export class LibraryAppModel extends Observable<AppState> {
   // Banner that hides itself after FLASH_MS; a new message restarts the timer.
   private flash(text: string, tone: FlashTone = "info"): void {
     this.clearFlashTimer();
+    this.feedback.message(tone === "danger");
     this.setState({ flash: { text, tone } });
     this.flashTimer = setTimeout(() => this.setState({ flash: null }), FLASH_MS);
+  }
+
+  // A tick only when a tab or switch actually changes, not when it is tapped again.
+  private tickIfChanged<T>(next: T, current: T): void {
+    if (next !== current) {
+      this.feedback.selection();
+    }
   }
 
   private clearFlashTimer(): void {

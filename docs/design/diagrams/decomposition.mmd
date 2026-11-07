@@ -3,7 +3,7 @@ flowchart TB
         direction LR
         views["components/<br/>ScreenHeader · MenuBar · BookCard · BookDetail<br/>OwnedCatalog · LetterRail · ScanForm · IsbnCamera<br/>PromptModal · CoverPicker · Tappable · TextField"]
         vm["model/<br/>LibraryAppModel (view model)<br/>LibraryController · LibraryView · ScanDraft<br/>Catalog · AlphabetRail · Labels · PromptActions"]
-        dev["device/<br/>ExpoCoverCamera · Haptics"]
+        dev["device/<br/>PhoneDevices · BrowserDevices<br/>ExpoCoverCamera · HapticFeedback"]
         sty["styles/<br/>theme tokens · fonts ·<br/>one stylesheet per component"]
     end
     subgraph S ["service/ (Service tier)"]
@@ -22,7 +22,7 @@ flowchart TB
     root["bootstrap.ts<br/>CompositionRoot"]
     views --> vm
     views --> sty
-    vm --> dev
+    dev -. implements .-> vm
     vm --> uc
     uc --> dm
     uc --> ports

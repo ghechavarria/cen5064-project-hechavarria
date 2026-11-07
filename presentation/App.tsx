@@ -27,7 +27,8 @@ import { OwnedCatalog } from "./components/OwnedCatalog";
 import { ScanForm } from "./components/ScanForm";
 import { ScreenHeader } from "./components/ScreenHeader";
 import { SegmentedControl } from "./components/SegmentedControl";
-import { ExpoCoverCamera } from "./device/expoCoverCamera";
+import { BrowserDevices } from "./device/browserDevices";
+import { PhoneDevices } from "./device/phoneDevices";
 import { LibraryAppModel } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
 import { useObservable } from "./model/useObservable";
@@ -47,12 +48,13 @@ export function App() {
 
 function LibraryScreen() {
   const insets = useSafeAreaInsets();
-  // One model for the app's lifetime, built with the real use cases and the device camera.
+  // One model for the app's lifetime, built with the real use cases and this
+  // platform's device family, chosen here once (Abstract Factory).
   const [model] = useState(
     () =>
       new LibraryAppModel(
         async () => new LibraryController(await CompositionRoot.openUseCases(), OWNER_ID),
-        new ExpoCoverCamera(),
+        Platform.OS === "web" ? new BrowserDevices() : new PhoneDevices(),
       ),
   );
   const state = useObservable(model);
@@ -113,7 +115,11 @@ function LibraryScreen() {
 
         {/* The camera sits outside the ScrollView so it keeps a fixed size. */}
         {page === "scan" ? (
-          <IsbnCamera listening={model.cameraListening} onIsbn={(code) => void model.scan(code)} />
+          <IsbnCamera
+            available={model.cameraAvailable}
+            listening={model.cameraListening}
+            onIsbn={(code) => void model.scan(code)}
+          />
         ) : null}
 
         <View style={styles.stage}>

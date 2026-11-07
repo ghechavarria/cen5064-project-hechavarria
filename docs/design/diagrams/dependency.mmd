@@ -2,8 +2,9 @@ flowchart LR
     App["App.tsx"] --> Root["CompositionRoot<br/>(bootstrap.ts)"]
     App --> Model["LibraryAppModel"]
     Model --> Controller["LibraryController"]
-    Model --> Camera["CoverCamera<br/>«interface»"]
-    ExpoCam["ExpoCoverCamera"] -. implements .-> Camera
+    Model --> Family["DeviceFamily «interface»<br/>CoverCamera · Feedback"]
+    Devices["PhoneDevices / BrowserDevices"] -. implements .-> Family
+    App -- picks one --> Devices
     Controller --> UC["UseCases"]
     UC --> Domain["Domain<br/>Book · PersonalLibrary ·<br/>AcquisitionRecord"]
     UC --> Ports["Ports «interfaces»<br/>BookRepository · IsbnLookup"]

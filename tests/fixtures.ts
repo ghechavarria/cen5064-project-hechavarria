@@ -1,11 +1,12 @@
 /**
  * Tests: shared fixtures — one sample book, one memory-backed wiring, and a
- * fake camera, so every test file builds the app the same way.
+ * fake device family (camera + feedback), so every test file builds the app the same way.
  */
 import { MemoryBookRepository } from "../data/bookRepository";
 import { IsbnNotFoundError } from "../domain/exceptions";
 import { BookFormat, Isbn } from "../domain";
 import { CoverCamera } from "../presentation/model/coverCamera";
+import { DeviceFamily, Feedback } from "../presentation/model/devices";
 import { LibraryController } from "../presentation/model/libraryController";
 import { UseCases } from "../service";
 import { BookMetadata, BookRepository, IsbnLookup } from "../service/ports";
@@ -62,10 +63,40 @@ export function controllerFor(
 export const MY_PHOTO = "data:image/jpeg;base64,MY-COVER";
 
 /** Test double for CoverCamera: hands back a fixed photo, or null when "cancelled". */
-export class FakeCoverCamera implements CoverCamera {
+class FakeCoverCamera implements CoverCamera {
+  readonly available = true;
+
   constructor(private readonly photo: string | null = MY_PHOTO) {}
 
   async takePhoto(): Promise<string | null> {
     return this.photo;
+  }
+}
+
+/** Test double for Feedback: records each tick ("selection") and banner ("message" / "error"). */
+class FakeFeedback implements Feedback {
+  readonly events: string[] = [];
+
+  selection(): void {
+    this.events.push("selection");
+  }
+
+  message(failed: boolean): void {
+    this.events.push(failed ? "error" : "message");
+  }
+}
+
+/** A device family made of fakes; pass a camera to test refusals or cancels. */
+export class FakeDevices implements DeviceFamily {
+  readonly feedback = new FakeFeedback();
+
+  constructor(private readonly camera: CoverCamera = new FakeCoverCamera()) {}
+
+  createCoverCamera(): CoverCamera {
+    return this.camera;
+  }
+
+  createFeedback(): Feedback {
+    return this.feedback;
   }
 }
