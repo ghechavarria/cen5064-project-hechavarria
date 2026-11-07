@@ -9,6 +9,7 @@
 \urlstyle{same}
 \usepackage{hyperref}
 \usepackage{float}
+\usepackage{pdflscape}
 \usepackage[section]{placeins}
 \usepackage{enumitem}
 \usepackage{array}
@@ -273,12 +274,14 @@ Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the w
 
 \subsection{Decomposition Description}
 
-\begin{figure}[htbp]
+\begin{landscape}
+\begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth, height=0.5\textheight, keepaspectratio]{figures/decomposition.png}
+\includegraphics[width=\linewidth, height=0.85\textheight, keepaspectratio]{figures/decomposition.png}
 \caption{System Decomposition Diagram (folders and their classes)}
 \label{fig:decomposition}
 \end{figure}
+\end{landscape}
 
 Figure~\ref{fig:decomposition} shows a top-down decomposition of the codebase. Each tier is a folder, and each folder holds classes with one responsibility each:
 
