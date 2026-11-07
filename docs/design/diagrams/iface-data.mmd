@@ -11,9 +11,16 @@ classDiagram
         +cachedIsbn(isbn) BookMetadata
         +cacheIsbn(metadata)
     }
+    class SyncStore {
+        <<interface>>
+        +versions(ownerId) BookVersion[]
+        +applyVersions(ownerId, versions)
+    }
     class BookRowMapper {
         +toBook(row)$ Book
-        +toRow(ownerId, book)$ BookRow
+        +toRow(ownerId, book, updatedAt, deletedAt)$ BookRow
+        +toVersion(row)$ BookVersion
+        +fromVersion(ownerId, version)$ BookRow
         +withDefaults(row)$ BookRow
         +isUsable(row)$ boolean
         +coverList(stored)$ String[]
@@ -24,6 +31,9 @@ classDiagram
     SqliteBookRepository ..|> IsbnCache
     MemoryBookRepository ..|> IsbnCache
     JsonBookRepository ..|> IsbnCache
+    SqliteBookRepository ..|> SyncStore
+    MemoryBookRepository ..|> SyncStore
+    JsonBookRepository ..|> SyncStore
     JsonBookRepository *-- MemoryBookRepository
     SqliteBookRepository --> BookRowMapper
     MemoryBookRepository --> BookRowMapper

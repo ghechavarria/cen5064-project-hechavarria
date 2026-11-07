@@ -1,30 +1,30 @@
 flowchart TB
-    subgraph P ["presentation/ (Presentation tier)"]
-        views["components/<br/>screens and widgets"]
-        vm["model/<br/>LibraryAppModel<br/>LibraryController"]
+    subgraph P ["presentation/"]
+        views["components/<br/>screens, widgets"]
+        vm["model/<br/>LibraryAppModel, AccountModel<br/>LibraryController"]
         dev["device/<br/>PhoneDevices<br/>BrowserDevices"]
-        sty["styles/<br/>theme + one stylesheet<br/>per component"]
+        sty["styles/<br/>theme, one<br/>stylesheet each"]
     end
-    subgraph S ["service/ (Service tier)"]
-        uc["use cases<br/>8 classes, built by UseCases"]
-        ports["ports.ts<br/>BookRepository · IsbnCache<br/>IsbnLookup"]
+    subgraph S ["service/"]
+        uc["use cases<br/>8 library<br/>4 account"]
+        ports["ports.ts<br/>BookRepository, IsbnCache<br/>IsbnLookup, SyncStore<br/>LibraryBackup, Accounts"]
     end
-    subgraph D ["domain/ (Domain tier)"]
-        dm["Book · PersonalLibrary<br/>AcquisitionRecord<br/>(Purchase / Gift) · Isbn"]
+    subgraph D ["domain/"]
+        dm["Book, PersonalLibrary<br/>AcquisitionRecord<br/>(Purchase / Gift)<br/>Isbn, Credentials"]
     end
-    subgraph DA ["data/ (Data tier)"]
-        repo["repositories<br/>Sqlite · Json · Memory<br/>BookRowMapper"]
-        src["book sources<br/>Open Library · Google Books<br/>Merged · Caching · Http"]
+    subgraph DA ["data/"]
+        repo["repositories<br/>Sqlite, Json, Memory<br/>BookRowMapper"]
+        ext["external services<br/>Open Library, Google Books, Merged,<br/>Caching, Http; SupabaseConnection,<br/>SupabaseAccounts, SupabaseLibraryBackup"]
     end
     root["bootstrap.ts<br/>CompositionRoot"]
     views --> vm
     views --> sty
-    dev -. implements .-> vm
+    dev -.-> vm
     vm --> uc
     uc --> dm
     uc --> ports
-    repo -. implements .-> ports
-    src -. implements .-> ports
+    repo -.-> ports
+    ext -.-> ports
     root --> repo
-    root --> src
+    root --> ext
     root --> uc

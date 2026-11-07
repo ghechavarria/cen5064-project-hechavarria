@@ -1,7 +1,7 @@
 flowchart LR
     reader(["Bibliophile"])
-    ol["Open Library<br/>«external»"]
-    gb["Google Books<br/>«external»"]
+    books["Open Library,<br/>Google Books<br/>«external»"]
+    sb["Supabase<br/>«external»"]
     subgraph MyHomeLib [MyHomeLib]
         direction TB
         uc1([Scan or type an ISBN])
@@ -15,12 +15,14 @@ flowchart LR
         uc9([Move a book between shelves])
         uc10([Delete a book])
         uc11([Add another copy])
+        uc12([Sign in and sync across phones])
     end
     reader --- uc1
     reader --- uc7
     reader --- uc6
     reader --- uc9
     reader --- uc10
+    reader --- uc12
     uc1 -. include .-> uc2
     uc2 -. extend .-> uc3
     uc1 -. include .-> uc4
@@ -28,5 +30,5 @@ flowchart LR
     uc1 -. extend, duplicate ISBN .-> uc11
     uc7 -. extend .-> uc8
     uc9 -. include, to Owned .-> uc5
-    uc1 --- ol
-    uc1 --- gb
+    books --- uc1
+    sb --- uc12

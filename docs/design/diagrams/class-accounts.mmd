@@ -1,0 +1,44 @@
+classDiagram
+    direction LR
+    class Accounts {
+        <<interface>>
+        +configured: boolean
+        +current() Account
+        +signUp(email, password) Account
+        +signIn(email, password) Account
+        +signOut()
+        +onChange(listener)
+    }
+    class LibraryBackup {
+        <<interface>>
+        +pull(ownerId) BookVersion[]
+        +push(ownerId, versions)
+        +watch(ownerId, onChange)
+    }
+    class SyncStore {
+        <<interface>>
+        +versions(ownerId) BookVersion[]
+        +applyVersions(ownerId, versions)
+    }
+    class AccountUseCase {
+        <<abstract>>
+        #accounts: Accounts
+    }
+    class SyncLibraryUseCase {
+        +execute(accountId) SyncReport
+        +signedIn(accountId, deviceOwner)
+        +adopt(fromOwner, toOwner)
+        +watch(accountId, onChange)
+    }
+    SignUpUseCase --|> AccountUseCase
+    SignInUseCase --|> AccountUseCase
+    SignOutUseCase --|> AccountUseCase
+    AccountUseCase --> Accounts
+    AccountUseCases *-- AccountUseCase : builds 3
+    AccountUseCases *-- SyncLibraryUseCase
+    SyncLibraryUseCase --> SyncStore
+    SyncLibraryUseCase --> LibraryBackup
+    SupabaseAccounts ..|> Accounts
+    UnconfiguredAccounts ..|> Accounts
+    SupabaseLibraryBackup ..|> LibraryBackup
+    UnconfiguredLibraryBackup ..|> LibraryBackup

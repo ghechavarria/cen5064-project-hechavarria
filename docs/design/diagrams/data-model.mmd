@@ -19,6 +19,8 @@ erDiagram
         TEXT published
         INTEGER page_count
         TEXT subjects
+        INTEGER updated_at "last change in ms; newest wins"
+        INTEGER deleted_at "tombstone; null if kept"
     }
     isbn_cache {
         TEXT isbn PK

@@ -1,0 +1,27 @@
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 16, "actorMargin": 10, "boxMargin": 6, "noteMargin": 6, "width": 70}}}%%
+sequenceDiagram
+    actor U as Bibliophile
+    participant AM as Account<br/>Model
+    participant A as Accounts
+    participant S as SyncLibrary<br/>UseCase
+    participant L as SyncStore<br/>(phone)
+    participant B as Library<br/>Backup
+    participant LM as LibraryApp<br/>Model
+    U->>AM: "Sign in"
+    AM->>A: signIn(email,<br/>password)
+    A-->>AM: Account
+    AM->>S: signedIn(id)
+    S->>L: versions(id)
+    S->>B: pull(id)
+    Note over S: newer<br/>updatedAt<br/>wins
+    S->>L: apply newer<br/>remote
+    S->>B: push newer<br/>local
+    S->>S: adopt the<br/>phone's books
+    AM->>B: watch(id)
+    AM->>LM: owner changed
+    LM-->>U: account's books
+    Note over B: another phone<br/>changes a book
+    B-->>AM: Realtime notice
+    AM->>S: execute(id)
+    S-->>AM: downloaded n
+    AM->>LM: reload shelves
