@@ -1,24 +1,10 @@
 classDiagram
+    direction LR
     class Observable~State~ {
         <<abstract>>
         +getState() State
         +subscribe(listener)
         #setState(patch)
-    }
-    class CoverCamera {
-        <<interface>>
-        +available: boolean
-        +takePhoto() String
-    }
-    class Feedback {
-        <<interface>>
-        +selection()
-        +message(failed)
-    }
-    class DeviceFamily {
-        <<interface>>
-        +createCoverCamera() CoverCamera
-        +createFeedback() Feedback
     }
     class CatalogGrouping {
         <<abstract>>
@@ -27,20 +13,11 @@ classDiagram
         +sections(books) CatalogSection[]
         #sectionOf(book)* String
     }
+    class DeviceFamily {
+        <<interface>>
+    }
     LibraryAppModel --|> Observable~State~
     LibraryAppModel --> DeviceFamily : takes one family
-    LibraryAppModel --> CoverCamera : photographs covers
-    LibraryAppModel --> Feedback : ticks and buzzes
-    PhoneDevices ..|> DeviceFamily
-    BrowserDevices ..|> DeviceFamily
-    PhoneDevices --> ExpoCoverCamera : creates
-    PhoneDevices --> HapticFeedback : creates
-    BrowserDevices --> BrowserCoverCamera : creates
-    BrowserDevices --> SilentFeedback : creates
-    ExpoCoverCamera ..|> CoverCamera
-    BrowserCoverCamera ..|> CoverCamera
-    HapticFeedback ..|> Feedback
-    SilentFeedback ..|> Feedback
     LibraryAppModel --> ScanDraft : holds while scanning
     LibraryAppModel *-- LibraryController : uses
     LibraryController --> LibraryView : builds

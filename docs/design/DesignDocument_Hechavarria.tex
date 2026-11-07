@@ -1250,15 +1250,22 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.4\textheight, keepaspectratio]{figures/class-presentation.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-presentation.png}
 \caption{Class Diagram: Presentation view model and catalog strategies}
 \label{fig:class_presentation}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-devices.png}
+\caption{Class Diagram: the device families (Abstract Factory, ADR-011)}
+\label{fig:class_devices}
 \end{figure}
 
 
 \FloatBarrier
 
-Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. The other tiers' classes are drawn where their interfaces are described, so they are not repeated here: Service in Figure~\ref{fig:iface_service}, Data in Figures~\ref{fig:iface_data} and~\ref{fig:iface_sources}. Figure~\ref{fig:class_presentation} adds the Presentation view model, its device family, and the catalog strategies. The object-oriented techniques used, and where:
+Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. The other tiers' classes are drawn where their interfaces are described, so they are not repeated here: Service in Figure~\ref{fig:iface_service}, Data in Figures~\ref{fig:iface_data} and~\ref{fig:iface_sources}. Figure~\ref{fig:class_presentation} adds the Presentation view model and the catalog strategies, and Figure~\ref{fig:class_devices} the device families. The object-oriented techniques used, and where:
 
 \begin{longtable}{|L{3.6cm}|L{11cm}|}
 \hline

@@ -1,0 +1,37 @@
+classDiagram
+    direction LR
+    class DeviceFamily {
+        <<interface>>
+        +createCoverCamera() CoverCamera
+        +createFeedback() Feedback
+    }
+    class CoverCamera {
+        <<interface>>
+        +available: boolean
+        +takePhoto() String
+    }
+    class Feedback {
+        <<interface>>
+        +selection()
+        +message(failed)
+    }
+    namespace Phone {
+        class PhoneDevices
+        class ExpoCoverCamera
+        class HapticFeedback
+    }
+    namespace Browser {
+        class BrowserDevices
+        class BrowserCoverCamera
+        class SilentFeedback
+    }
+    PhoneDevices ..|> DeviceFamily
+    BrowserDevices ..|> DeviceFamily
+    PhoneDevices --> ExpoCoverCamera : creates
+    PhoneDevices --> HapticFeedback : creates
+    BrowserDevices --> BrowserCoverCamera : creates
+    BrowserDevices --> SilentFeedback : creates
+    ExpoCoverCamera ..|> CoverCamera
+    HapticFeedback ..|> Feedback
+    BrowserCoverCamera ..|> CoverCamera
+    SilentFeedback ..|> Feedback
