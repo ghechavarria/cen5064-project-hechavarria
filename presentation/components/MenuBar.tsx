@@ -1,5 +1,5 @@
 /**
- * Component: MenuBar — the floating TBR / Owned / Wanted / Scan tab dock.
+ * Component: MenuBar — the floating TBR / Owned / Wanted / Scan / Account tab dock.
  * A glowing pill slides under the chosen tab (it simply jumps there when the
  * phone asks for reduced motion). Scan, the app's main action, sits in a mint circle.
  */
@@ -21,6 +21,7 @@ const TABS: { id: MenuTab; label: string; icon: IconName; iconOn: IconName; prim
   { id: "owned", label: "Owned", icon: "library-outline", iconOn: "library" },
   { id: "wanted", label: "Wanted", icon: "heart-outline", iconOn: "heart" },
   { id: "scan", label: "Scan", icon: "barcode-outline", iconOn: "barcode", primary: true },
+  { id: "account", label: "Account", icon: "person-circle-outline", iconOn: "person-circle" },
 ];
 
 export function MenuBar({

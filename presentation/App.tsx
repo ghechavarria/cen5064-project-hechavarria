@@ -1,12 +1,12 @@
 /**
- * Presentation root: the TBR / Owned / Wanted / Scan screens.
+ * Presentation root: the TBR / Owned / Wanted / Scan / Account screens.
  *
  * MVVM: LibraryAppModel (a class) owns all screen state and behavior; this
  * file only lays out components from that state and forwards taps to the
  * model. Styles come from styles/app.styles.ts.
  *
- * The model reaches the Service use cases through LibraryController,
- * which bootstrap.ts wires up.
+ * The model reaches the Service use cases through LibraryController, and the
+ * account use cases through AccountModel; bootstrap.ts wires both up.
  */
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositionRoot } from "../bootstrap";
+import { AccountPanel } from "./components/AccountPanel";
 import { Book, Shelf } from "../domain";
 import { ArtFill } from "./components/Art";
 import { BookDetail } from "./components/BookDetail";
@@ -29,6 +30,7 @@ import { ScreenHeader } from "./components/ScreenHeader";
 import { SegmentedControl } from "./components/SegmentedControl";
 import { BrowserDevices } from "./device/browserDevices";
 import { PhoneDevices } from "./device/phoneDevices";
+import { AccountModel } from "./model/accountModel";
 import { LibraryAppModel } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
 import { useObservable } from "./model/useObservable";
@@ -48,16 +50,22 @@ export function App() {
 
 function LibraryScreen() {
   const insets = useSafeAreaInsets();
-  // One model for the app's lifetime, built with the real use cases and this
-  // platform's device family, chosen here once (Abstract Factory).
-  const [model] = useState(
-    () =>
-      new LibraryAppModel(
-        async () => new LibraryController((await CompositionRoot.open()).library, OWNER_ID),
+  // The models live as long as the app. Both get their use cases from one
+  // bootstrap call; the device family is chosen here once (Abstract Factory).
+  const [{ model, account }] = useState(() => {
+    const services = CompositionRoot.open();
+    const accountModel = new AccountModel(async () => (await services).account, OWNER_ID);
+    return {
+      account: accountModel,
+      model: new LibraryAppModel(
+        async () => new LibraryController((await services).library, OWNER_ID),
         Platform.OS === "web" ? new BrowserDevices() : new PhoneDevices(),
+        accountModel,
       ),
-  );
+    };
+  });
   const state = useObservable(model);
+  const accountState = useObservable(account);
   // Bundled fonts; if they fail to load, the system font is used instead.
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   // One stable handler for every book card, so memoized cards don't re-render.
@@ -153,6 +161,7 @@ function LibraryScreen() {
                   onScan={() => model.selectTab("scan")}
                 />
               ) : null}
+              {page === "account" ? <AccountPanel model={account} state={accountState} /> : null}
               {page === "detail" && selected ? (
                 <BookDetail
                   book={selected}
