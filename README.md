@@ -58,7 +58,7 @@ MyHomeLib is a mobile app. It runs on an iPhone or Android phone inside the free
    ```
    EXPO_PUBLIC_GOOGLE_BOOKS_KEY=your-key-here
    ```
-   Save the file. Leave the two `EXPO_PUBLIC_SUPABASE_` lines empty: accounts use the shared MyHomeLib project built into the app. `.env` is ignored by Git, so your key is never committed.
+   Save the file. Leave the two `EXPO_PUBLIC_SUPABASE_` lines empty. **You do not need a Supabase account or any Supabase keys:** accounts use the shared MyHomeLib project, whose address and public key are built into the app. `.env` is ignored by Git, so your Google key is never committed.
 
 5. **Install the dependencies** (takes a minute or two the first time):
    ```
@@ -69,13 +69,15 @@ MyHomeLib is a mobile app. It runs on an iPhone or Android phone inside the free
    ```
    npx expo start
    ```
-   Leave this terminal open while you use the app. It prints a QR code.
+   Leave this terminal open while you use the app. It prints a QR code. On Windows, if a firewall window asks about Node.js, click **Allow** (private networks), or the phone can't reach the computer.
 
 7. **Open the app on your phone:**
    - Open Expo Go. Under **Development servers**, tap the MyHomeLib server.
    - If it isn't listed, scan the QR code from the terminal: on iPhone with the **Camera** app, on Android with **Scan QR code** inside Expo Go.
+   - On iPhone, when Expo Go asks to find devices on your local network, tap **Allow**.
+   - The first load takes up to a minute while the app is built.
 
-8. **Create an account.** The library is kept in your account, so the shelves stay empty and scanning is off until you sign in. Tap the **Account** tab → **Create an account** → enter your email and a password of at least 8 characters → **Create account**. You are signed in straight away.
+8. **Create an account.** The library is kept in your account, so the shelves stay empty and scanning is off until you sign in. Tap the **Account** tab → **Create an account** → enter your email and a password of at least 8 characters → **Create account**. You are signed in straight away, with no confirmation email. Next time (or on another phone), use **Sign in** with the same email and password. **Sign out** is on the same tab.
 
 9. **Scan a book.** Tap **Scan**, allow the camera, and point it at the ISBN barcode on the back of a book (or type the ISBN below the camera). Pick the cover that matches your copy, then answer the questions to shelve it.
 
@@ -89,6 +91,18 @@ MyHomeLib is a mobile app. It runs on an iPhone or Android phone inside the free
 | The phone doesn't list the server, or the QR code won't open | Check the phone and computer are on the same Wi-Fi. Otherwise stop the server (Ctrl+C) and run `npx expo start --tunnel` (say yes if it asks to install `@expo/ngrok`), then scan the new QR code. |
 | Scans find nothing or show no covers after editing `.env` | Stop the server (Ctrl+C) and start it again with `npx expo start --clear`, so the key is read. |
 | `npm install` or `npx` is not recognized | Install Node.js LTS, then close and reopen the terminal. |
+| "Couldn't reach the account service" when signing in | Check the phone's internet connection. If it persists, the shared Supabase project may be paused after a week without use: ask the project owner to restore it (see below). |
+| "An account with that email already exists" | Use **Sign in** instead of **Create an account**. |
+
+### Running the Supabase project (project owner only)
+
+People who run the app never do this. It is how the shared project behind the accounts was set up, and how to set up your own ([ADR-012](docs/adr/adr-012.md)):
+
+1. At [supabase.com](https://supabase.com), create a free project. Keep **Enable Data API** on, turn **Automatically expose new tables** off, and turn **Enable automatic RLS** on.
+2. **SQL Editor** → **New query** → paste all of [`supabase/migrations/20261107000000_library_books.sql`](supabase/migrations/20261107000000_library_books.sql) → **Run**. It creates the `library_books` table, its row level security rules, and turns on Realtime for auto sync.
+3. **Authentication** → **Sign In / Providers**: keep **Email** enabled, turn **Confirm email** off, and **Save changes** (the free plan's email sender only reaches the project's own team).
+4. To point the app at your project, put its **Project URL** and **Publishable key** (Project Settings → API Keys) in `.env` as `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_KEY`. Never use the secret or `service_role` key.
+5. Free projects pause after about a week without activity. If sign-in stops working, open the dashboard and click **Restore project**.
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos. Accounts and sync work in the browser too.
 
@@ -101,7 +115,7 @@ MyHomeLib is a mobile app. It runs on an iPhone or Android phone inside the free
 | [`docs/design/DesignDocument_Hechavarria.pdf`](docs/design/DesignDocument_Hechavarria.pdf) | Software Design Document: architecture, components, interfaces, screenshots, requirements traceability, sprints, design rationale, and verification. A Word copy ([`DesignDocument_Hechavarria.docx`](docs/design/DesignDocument_Hechavarria.docx)), the LaTeX source (`DesignDocument_Hechavarria.tex`), and the diagram sources sit beside it. |
 | [`docs/code-review.md`](docs/code-review.md) | Study guide: what calls what in plain words, where each class lives and why, and answers to "why this architecture, why Expo Go, why TypeScript". |
 | [`docs/pattern-map.md`](docs/pattern-map.md) | The five creational patterns checked against this code: one genuine fit (Abstract Factory) and four honest "no fit" lines. |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–011): one page per decision, with its context and consequences. |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records (001–012): one page per decision, with its context and consequences. |
 | This README | How to run, the tier table, and the C4 and UML diagrams. |
 
 ## Architecture
