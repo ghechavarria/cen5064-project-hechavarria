@@ -122,9 +122,9 @@ People who run the app never do this. It is how the shared project behind the ac
 | Tier | Responsibilities in THIS system |
 |------|--------------------------------|
 | Presentation | Expo Go screens: bottom menu **TBR / Owned / Wanted / Scan / Account**, dark forest theme. Account signs in or creates an account and shows how the last sync went (`AccountModel`, ADR-012). TBR is the Owned reading list (Unread / Read). Owned is the full catalog, grouped A–Z, by Author, or by Series, with an A–Z letter rail in every grouping. Wanted is the wish list. Scan uses the phone camera, with a typed-ISBN fallback: confirm and **pick the cover that matches your copy** (or photograph it) → hardcover/paperback (only if no source knew) → Owned/Wanted → purchased/gifted (Owned only) → read/unread; a duplicate ISBN skips straight to adding a copy. Detail: edition facts and binding, read/unread, photograph my cover, shelf moves, delete. **Built MVVM:** `LibraryAppModel` (a class extending `Observable`) holds all screen state and flows; `LibraryController` is its bridge to the use cases; the camera and haptic feedback come from one device family (`PhoneDevices` or `BrowserDevices`, an Abstract Factory chosen once in `App.tsx`; see [docs/pattern-map.md](docs/pattern-map.md)). React components in `presentation/components/` only render, with every stylesheet in `presentation/styles/`. **Design system:** one theme file of tokens (colors, spacing, type roles in the Outfit font), shared building blocks (`Tappable` for every tap, `TextField`, `BookCover`, `CoverBackdrop`, `Logo`), and Expo Go's own modules for images, gradients, fonts and haptics ([ADR-008](docs/adr/adr-008.md)). Never touches a repository. |
-| Service | Orchestration, one class per use case: `LookupIsbnUseCase` (no save), `ScanBookUseCase`, `LoadLibraryUseCase`, `MoveBookToShelfUseCase`, `SetReadingStatusUseCase`, `ChangeCoverUseCase`, `DeleteBookUseCase`, `FillMissingFactsUseCase`. All except the lookup extend the abstract `LibraryUseCase` (shared load → change → save); `ScanBookUseCase` and `FillMissingFactsUseCase` go through `LibraryLookupUseCase`, which adds the book-source lookup. The `UseCases` class builds them all from the two ports. Service never contains SQL, `fetch`, or React. |
-| Domain | `Book` (isbn, title, author, cover, publisher, **format** HARDCOVER/PAPERBACK/UNKNOWN, shelf OWNED/WANTED, readingStatus UNREAD/READ, series, description, published, pageCount, subjects, copyCount, acquisition). TBR is a view of Owned unread/read, not a third exclusive shelf. Every Owned book must be purchased or gifted, whether it is scanned straight into Owned (`PersonalLibrary.addBook`) or moved from Wanted (`Book.moveTo`). |
-| Data | Persistence and the two book sources. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner's books plus a lookup cache; on Expo web / tests, JSON / memory. `BookRowMapper` is the only row ↔ Book translation, and repairs rows saved by older builds or damaged on disk. Rows are unique per owner and ISBN. Book sources: `OpenLibraryIsbnLookup` (no key; edition-first, so cover, publisher, date, pages and binding come from the exact ISBN's record) and `GoogleBooksIsbnLookup` (free key; only accepts the volume listing the scanned ISBN). `MergedIsbnLookup` asks both and keeps every distinct cover as a candidate; `CachingIsbnLookup` caches the result. All HTTP goes through the `Http` class, which times out after 15 s and reports any failure as one `BookSourceUnavailableError`. No bookstore scraping. |
+| Service | Orchestration, one class per use case: `LookupIsbnUseCase` (no save), `ScanBookUseCase`, `LoadLibraryUseCase`, `MoveBookToShelfUseCase`, `SetReadingStatusUseCase`, `ChangeCoverUseCase`, `DeleteBookUseCase`, `FillMissingFactsUseCase`. All except the lookup extend the abstract `LibraryUseCase` (shared load → change → save); `ScanBookUseCase` and `FillMissingFactsUseCase` go through `LibraryLookupUseCase`, which adds the book-source lookup. The `UseCases` class builds them all from the two ports. Accounts (ADR-012): `SignUpUseCase`, `SignInUseCase` and `SignOutUseCase` extend `AccountUseCase`, and `SyncLibraryUseCase` merges the phone's copy with the account's (latest change wins per book; deletes travel as tombstones; the first sign-in moves the phone's books into the account); `AccountUseCases` builds them from the `Accounts`, `LibraryBackup` and `SyncStore` ports. Service never contains SQL, `fetch`, or React. |
+| Domain | `Credentials` checks an email and password before any sign-in call. `Book` (isbn, title, author, cover, publisher, **format** HARDCOVER/PAPERBACK/UNKNOWN, shelf OWNED/WANTED, readingStatus UNREAD/READ, series, description, published, pageCount, subjects, copyCount, acquisition). TBR is a view of Owned unread/read, not a third exclusive shelf. Every Owned book must be purchased or gifted, whether it is scanned straight into Owned (`PersonalLibrary.addBook`) or moved from Wanted (`Book.moveTo`). |
+| Data | Persistence and the two book sources. On a phone, `SqliteBookRepository` (`expo-sqlite`) stores each owner's books plus a lookup cache; on Expo web / tests, JSON / memory. `BookRowMapper` is the only row ↔ Book translation, and repairs rows saved by older builds or damaged on disk. Rows are unique per owner and ISBN. Book sources: `OpenLibraryIsbnLookup` (no key; edition-first, so cover, publisher, date, pages and binding come from the exact ISBN's record) and `GoogleBooksIsbnLookup` (free key; only accepts the volume listing the scanned ISBN). `MergedIsbnLookup` asks both and keeps every distinct cover as a candidate; `CachingIsbnLookup` caches the result. All HTTP goes through the `Http` class, which times out after 15 s and reports any failure as one `BookSourceUnavailableError`. No bookstore scraping. Accounts: the device stores also implement `SyncStore` (every save stamped with its time, a delete kept as a tombstone); `SupabaseAccounts` signs in through Supabase Auth and `SupabaseLibraryBackup` reads and writes the `library_books` table (row level security) and watches it through Realtime; `UnconfiguredAccounts` / `UnconfiguredLibraryBackup` are Null Objects when no Supabase project is configured. |
 
 ### C4 Level 1 — Context
 
@@ -134,7 +134,8 @@ People who run the app never do this. It is how the shared project behind the ac
 flowchart LR
     user(["Bibliophile<br/>[person]"]) -->|catalogs books with| system["MyHomeLib<br/>[software system]"]
     system -->|looks up edition details via| openLibrary["Open Library<br/>[external system]"]
-    system -->|looks up edition details and covers via| google["Google Books<br/>[external system, optional]"]
+    system -->|looks up edition details and covers via| google["Google Books<br/>[external system]"]
+    system -->|signs in and syncs the library via| supabase["Supabase<br/>[external system]<br/>accounts and each account's synced copy"]
 ```
 
 ### C4 Level 2 — Container
@@ -152,34 +153,41 @@ flowchart LR
         ui -->|calls use cases| app
         app -->|reads/writes books| db
         app -->|looks up ISBN| lookup
+        accounts["Account adapters<br/>[Data: Supabase sign-in + library backup]"]
+        app -->|signs in, syncs| accounts
         lookup -->|caches metadata| db
     end
     lookup -->|HTTPS, no key| openLibrary["Open Library<br/>[external system]"]
-    lookup -->|HTTPS, free key| google["Google Books<br/>[external system, optional]"]
+    lookup -->|HTTPS, free key| google["Google Books<br/>[external system]"]
+    accounts -->|HTTPS + Realtime, public key| supabase["Supabase<br/>[external system]"]
 ```
 
 ### C4 Level 3 — Component (Application container, used lightly)
 
 The Application container zoomed in, following the slide's Controller → Service → Domain / Repository shape:
 
-- **Controller:** `LibraryAppModel` (screen state and flows) and `LibraryController` (its bridge to the use cases). `App.tsx` and `presentation/components/` only render and forward taps.
-- **Services:** the use cases, which share the `LibraryUseCase` base class.
-- **Repository:** the `BookRepository` / `IsbnLookup` interfaces (ports).
+- **Controller:** `LibraryAppModel` (screen state and flows) and `LibraryController` (its bridge to the use cases), plus `AccountModel` for the Account tab. `App.tsx` and `presentation/components/` only render and forward taps.
+- **Services:** the library use cases, which share the `LibraryUseCase` base class, and the account use cases with `SyncLibraryUseCase`.
+- **Repository:** the `BookRepository` / `IsbnLookup` / `SyncStore` / `LibraryBackup` / `Accounts` interfaces (ports).
 
 `CompositionRoot` (in `bootstrap.ts`) is the composition root. It plugs the Data adapters into the ports and hands the UI only use cases, so the UI never touches a repository and Service never imports Data. `tests/architecture.test.ts` enforces these rules.
 
 ```mermaid
 flowchart LR
     subgraph Application [Application container]
-        controller["LibraryAppModel + LibraryController<br/>[controller: screen state and flows → use cases]"]
+        controller["LibraryAppModel + LibraryController + AccountModel<br/>[controller: screen state and flows → use cases]"]
         services["Use cases (extend LibraryUseCase)<br/>[LoadLibrary · ScanBook · MoveBookToShelf · SetReadingStatus · ChangeCover · DeleteBook · FillMissingFacts] + LookupIsbn"]
-        domain["Domain model<br/>[Book · PersonalLibrary · Purchase / Gift: rules]"]
-        ports["Ports<br/>[BookRepository · IsbnLookup interfaces]"]
+        accountServices["Account use cases (extend AccountUseCase)<br/>[SignUp · SignIn · SignOut] + SyncLibrary"]
+        domain["Domain model<br/>[Book · PersonalLibrary · Purchase / Gift · Credentials: rules]"]
+        ports["Ports<br/>[BookRepository · IsbnLookup · SyncStore · LibraryBackup · Accounts interfaces]"]
         controller --> services
+        controller --> accountServices
         services -->|uses| domain
+        accountServices -->|uses| domain
         services --> ports
+        accountServices --> ports
     end
-    adapters["Data adapters<br/>[SqliteBookRepository · JsonBookRepository · MemoryBookRepository<br/>OpenLibraryIsbnLookup · GoogleBooksIsbnLookup · MergedIsbnLookup · CachingIsbnLookup]"] -.->|implements| ports
+    adapters["Data adapters<br/>[SqliteBookRepository · JsonBookRepository · MemoryBookRepository<br/>OpenLibraryIsbnLookup · GoogleBooksIsbnLookup · MergedIsbnLookup · CachingIsbnLookup<br/>SupabaseAccounts · SupabaseLibraryBackup]"] -.->|implements| ports
 ```
 
 ### UML — Class diagram
@@ -260,7 +268,8 @@ How the other tiers are built from classes:
 - **Interfaces:** the ports are interfaces, and the Data adapters implement them.
 - **Strategy:** each Owned-catalog grouping is a `CatalogGrouping` subclass.
 - **Decorators:** `MergedIsbnLookup` combines the two book sources; `CachingIsbnLookup` caches whatever it wraps.
-- **MVVM in Presentation:** `LibraryAppModel` extends the reusable `Observable` base class. React subscribes to it with `useObservable`, so components hold no logic.
+- **MVVM in Presentation:** `LibraryAppModel` and `AccountModel` extend the reusable `Observable` base class. React subscribes to them with `useObservable`, so components hold no logic.
+- **Null Object:** with no Supabase project configured, `UnconfiguredAccounts` and `UnconfiguredLibraryBackup` stand in, so no caller checks for one.
 
 ```mermaid
 classDiagram
@@ -316,6 +325,42 @@ classDiagram
     CachingIsbnLookup --> IsbnLookup : wraps
     CachingIsbnLookup --> IsbnCache : caches in
 
+    class SyncStore {
+        <<interface>>
+        +versions(ownerId) BookVersion[]
+        +applyVersions(ownerId, versions)
+    }
+    class LibraryBackup {
+        <<interface>>
+        +pull(ownerId) BookVersion[]
+        +push(ownerId, versions)
+        +watch(ownerId, onChange)
+    }
+    class Accounts {
+        <<interface>>
+        +current() Account
+        +signUp(email, password) Account
+        +signIn(email, password) Account
+        +signOut()
+    }
+    class AccountUseCase {
+        <<abstract>>
+        #accounts: Accounts
+    }
+    SignUpUseCase --|> AccountUseCase
+    SignInUseCase --|> AccountUseCase
+    SignOutUseCase --|> AccountUseCase
+    AccountUseCase --> Accounts : uses
+    SyncLibraryUseCase --> SyncStore : versions on the phone
+    SyncLibraryUseCase --> LibraryBackup : the account's copy
+    MemoryBookRepository ..|> SyncStore
+    JsonBookRepository ..|> SyncStore
+    SqliteBookRepository ..|> SyncStore
+    SupabaseLibraryBackup ..|> LibraryBackup
+    UnconfiguredLibraryBackup ..|> LibraryBackup
+    SupabaseAccounts ..|> Accounts
+    UnconfiguredAccounts ..|> Accounts
+
     class CatalogGrouping {
         <<abstract>>
         +mode: CatalogMode
@@ -365,6 +410,10 @@ classDiagram
     LibraryAppModel *-- LibraryController : uses
     LibraryController --> LibraryView : builds
     LibraryController --> LibraryUseCase : calls
+    AccountModel --|> Observable~State~
+    LibraryAppModel o-- AccountModel : follows the signed-in account
+    AccountModel --> AccountUseCase : calls
+    AccountModel --> SyncLibraryUseCase : syncs
 ```
 
 ### UML — Sequence diagram
@@ -404,6 +453,36 @@ sequenceDiagram
     UI-->>U: show on TBR/Owned or Wanted
 ```
 
+Core feature 4: signing in, syncing, and auto sync ([ADR-012](docs/adr/adr-012.md)). The phone's copy is always the one the app shows; per book, the newer change wins.
+
+```mermaid
+sequenceDiagram
+    actor U as Bibliophile
+    participant AM as AccountModel
+    participant A as Accounts (Supabase Auth)
+    participant S as SyncLibraryUseCase
+    participant L as SyncStore (phone)
+    participant B as LibraryBackup (Supabase)
+    participant LM as LibraryAppModel
+    U->>AM: email, password, "Sign in"
+    AM->>A: signIn (after Credentials.parse)
+    A-->>AM: Account
+    AM->>S: signedIn(accountId, "local")
+    S->>L: versions(accountId)
+    S->>B: pull(accountId)
+    Note over S: per book, the newer updatedAt wins
+    S->>L: applyVersions(newer remote)
+    S->>B: push(newer local)
+    S->>S: adopt(the phone's books into the account)
+    AM->>B: watch(accountId)
+    AM->>LM: owner changed
+    LM-->>U: shelves show the account's books
+    Note over B: later, another phone changes a book
+    B-->>AM: change notice (Realtime)
+    AM->>S: execute(accountId)
+    AM->>LM: reload shelves
+```
+
 ## Architecture Decision Records
 
 Decisions live in [`docs/adr/`](docs/adr/). Plain-English walkthrough and the "why" behind them: [`docs/code-review.md`](docs/code-review.md).
@@ -421,6 +500,7 @@ Decisions live in [`docs/adr/`](docs/adr/). Plain-English walkthrough and the "w
 | [009](docs/adr/adr-009.md) | Ports and adapters between Service and Data | accepted |
 | [010](docs/adr/adr-010.md) | Validate input and contain failures at the tier edges | accepted |
 | [011](docs/adr/adr-011.md) | Device services as one family per platform (Abstract Factory) | accepted |
+| [012](docs/adr/adr-012.md) | Account sign-in and library sync with Supabase (email sign-up) | accepted |
 
 The full Software Design Document (PDF, Word copy, and LaTeX source) is in [`docs/design/`](docs/design/).
 
