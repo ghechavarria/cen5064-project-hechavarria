@@ -30,12 +30,14 @@ classDiagram
         +remove(isbn)
         +fillMissingFacts()
     }
-    class CoverCamera {
+    class DeviceFamily {
         <<interface>>
-        +takePhoto() String
+        +createCoverCamera() CoverCamera
+        +createFeedback() Feedback
     }
     LibraryAppModel --|> Observable~State~
     LibraryAppModel *-- LibraryController
-    LibraryAppModel --> CoverCamera
-    ExpoCoverCamera ..|> CoverCamera
+    LibraryAppModel --> DeviceFamily : one per platform
+    PhoneDevices ..|> DeviceFamily
+    BrowserDevices ..|> DeviceFamily
     LibraryController --> UseCases

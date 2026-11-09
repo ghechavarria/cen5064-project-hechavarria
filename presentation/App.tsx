@@ -1,23 +1,25 @@
 /**
- * Presentation root: the TBR / Owned / Wanted / Scan screens.
+ * Presentation root: the TBR / Owned / Wanted / Scan / Account screens.
  *
  * MVVM: LibraryAppModel (a class) owns all screen state and behavior; this
  * file only lays out components from that state and forwards taps to the
  * model. Styles come from styles/app.styles.ts.
  *
- * The model reaches the Service use cases through LibraryController,
- * which bootstrap.ts wires up.
+ * The model reaches the Service use cases through LibraryController, and the
+ * account use cases through AccountModel; bootstrap.ts wires both up.
  */
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { AppState, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompositionRoot } from "../bootstrap";
+import { AccountPanel } from "./components/AccountPanel";
 import { Book, Shelf } from "../domain";
 import { ArtFill } from "./components/Art";
 import { BookDetail } from "./components/BookDetail";
 import { BookList } from "./components/BookList";
+import { EmptyShelf } from "./components/EmptyShelf";
 import { FlashBanner } from "./components/FlashBanner";
 import { IsbnCamera } from "./components/IsbnCamera";
 import { LibraryPrompts } from "./components/LibraryPrompts";
@@ -27,7 +29,9 @@ import { OwnedCatalog } from "./components/OwnedCatalog";
 import { ScanForm } from "./components/ScanForm";
 import { ScreenHeader } from "./components/ScreenHeader";
 import { SegmentedControl } from "./components/SegmentedControl";
-import { ExpoCoverCamera } from "./device/expoCoverCamera";
+import { BrowserDevices } from "./device/browserDevices";
+import { PhoneDevices } from "./device/phoneDevices";
+import { AccountModel } from "./model/accountModel";
 import { LibraryAppModel } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
 import { useObservable } from "./model/useObservable";
@@ -47,15 +51,22 @@ export function App() {
 
 function LibraryScreen() {
   const insets = useSafeAreaInsets();
-  // One model for the app's lifetime, built with the real use cases and the device camera.
-  const [model] = useState(
-    () =>
-      new LibraryAppModel(
-        async () => new LibraryController(await CompositionRoot.openUseCases(), OWNER_ID),
-        new ExpoCoverCamera(),
+  // The models live as long as the app. Both get their use cases from one
+  // bootstrap call; the device family is chosen here once (Abstract Factory).
+  const [{ model, account }] = useState(() => {
+    const services = CompositionRoot.open();
+    const accountModel = new AccountModel(async () => (await services).account, OWNER_ID);
+    return {
+      account: accountModel,
+      model: new LibraryAppModel(
+        async () => new LibraryController((await services).library, OWNER_ID),
+        Platform.OS === "web" ? new BrowserDevices() : new PhoneDevices(),
+        accountModel,
       ),
-  );
+    };
+  });
   const state = useObservable(model);
+  const accountState = useObservable(account);
   // Bundled fonts; if they fail to load, the system font is used instead.
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   // One stable handler for every book card, so memoized cards don't re-render.
@@ -65,6 +76,16 @@ function LibraryScreen() {
     void model.start();
     return () => model.dispose();
   }, [model]);
+
+  // Back on screen: sync, in case a change from another phone was missed meanwhile.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (appState) => {
+      if (appState === "active") {
+        void account.sync();
+      }
+    });
+    return () => subscription.remove();
+  }, [account]);
 
   if (!state.ready || (!fontsLoaded && !fontError)) {
     return (
@@ -97,7 +118,7 @@ function LibraryScreen() {
           onBack={page === "detail" ? () => model.back() : undefined}
         />
 
-        {page === "tbr" ? (
+        {page === "tbr" && !model.locked ? (
           <SegmentedControl
             segments={model.readingSegments.map(({ key, label, read }) => ({
               key,
@@ -112,12 +133,23 @@ function LibraryScreen() {
         <FlashBanner flash={state.flash} onDismiss={() => model.dismissFlash()} />
 
         {/* The camera sits outside the ScrollView so it keeps a fixed size. */}
-        {page === "scan" ? (
-          <IsbnCamera listening={model.cameraListening} onIsbn={(code) => void model.scan(code)} />
+        {page === "scan" && !model.locked ? (
+          <IsbnCamera
+            available={model.cameraAvailable}
+            listening={model.cameraListening}
+            onIsbn={(code) => void model.scan(code)}
+          />
         ) : null}
 
         <View style={styles.stage}>
-          {page === "owned" ? (
+          {model.locked && page !== "account" ? (
+            <EmptyShelf
+              iconName="person-circle-outline"
+              title="Sign in to see your library"
+              message="Your books are kept in your account, so you can see them on any phone."
+              action={{ label: "Go to Account", onPress: () => model.selectTab("account") }}
+            />
+          ) : page === "owned" ? (
             <OwnedCatalog
               books={state.view.owned}
               mode={state.catalogMode}
@@ -147,6 +179,7 @@ function LibraryScreen() {
                   onScan={() => model.selectTab("scan")}
                 />
               ) : null}
+              {page === "account" ? <AccountPanel model={account} state={accountState} /> : null}
               {page === "detail" && selected ? (
                 <BookDetail
                   book={selected}

@@ -117,7 +117,12 @@ export class Book {
   }
   // Duplicate ISBN: increment copies, do not insert a second row.
   addCopy(): void {
-    this._copyCount += 1;
+    this.addCopies(1);
+  }
+
+  // The same book kept in two libraries being joined (ADR-012): the copies add up.
+  addCopies(count: number): void {
+    this._copyCount += Math.max(0, Math.floor(count));
   }
 
   // Purchase or Gift; an incomplete record (gift with no giver) is rejected.

@@ -5,16 +5,19 @@
  * exist in one place only. Domain never sees rows.
  */
 import { Acquisition, AcquisitionRecord, Book, BookFormat, BookProps, Isbn, ReadingStatus, Shelf } from "../domain";
-import { BookMetadata } from "../service/ports";
+import { BookMetadata, BookVersion } from "../service/ports";
 
 /**
- * One stored book, flat and serializable (what JSON and SQLite hold): every
- * Book field, with the acquisition flattened into two columns, plus its owner.
+ * One stored book, flat and serializable (what JSON, SQLite and the account
+ * backup hold): every Book field, with the acquisition flattened into two
+ * columns, plus its owner and the two sync timestamps (ADR-012).
  */
 export type BookRow = Required<Omit<BookProps, "acquisition">> & {
   ownerId: string;
   acquiredAs: Acquisition | null;
   giftedBy: string | null;
+  updatedAt: number;
+  deletedAt: number | null;
 };
 
 /**
@@ -32,9 +35,21 @@ export class BookRowMapper {
     return new Book({ ...row, acquisition: AcquisitionRecord.restore(row.acquiredAs, row.giftedBy) });
   }
 
-  // Book → row, ready to store.
-  static toRow(ownerId: string, book: Book): BookRow {
+  // Row → the version sync compares (the book plus its timestamps).
+  static toVersion(row: BookRow): BookVersion {
+    return { book: BookRowMapper.toBook(row), updatedAt: row.updatedAt, deletedAt: row.deletedAt };
+  }
+
+  // A version → row for this owner, keeping its timestamps.
+  static fromVersion(ownerId: string, version: BookVersion): BookRow {
+    return BookRowMapper.toRow(ownerId, version.book, version.updatedAt, version.deletedAt);
+  }
+
+  // Book → row, ready to store, stamped with when it changed (and was deleted, if it was).
+  static toRow(ownerId: string, book: Book, updatedAt = 0, deletedAt: number | null = null): BookRow {
     return {
+      updatedAt,
+      deletedAt,
       ownerId,
       isbn: book.isbn,
       title: book.title,
@@ -91,6 +106,9 @@ export class BookRowMapper {
       pageCount: Math.max(0, Math.floor(Number(row.pageCount)) || 0),
       subjects: BookRowMapper.text(row.subjects),
       format: BookRowMapper.oneOf(Object.values(BookFormat), row.format, BookFormat.UNKNOWN),
+      // Rows from before sync have no timestamps: they count as the oldest version.
+      updatedAt: BookRowMapper.time(row.updatedAt) ?? 0,
+      deletedAt: BookRowMapper.time(row.deletedAt),
     };
   }
 
@@ -126,6 +144,12 @@ export class BookRowMapper {
   static isbnKey(stored: unknown): string {
     const isbn = BookRowMapper.text(stored);
     return Isbn.isValid(isbn) ? Isbn.canonical(isbn) : isbn;
+  }
+
+  // A stored timestamp (milliseconds), or null when it is missing or not a usable number.
+  private static time(value: unknown): number | null {
+    const time = Number(value);
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(time) && time >= 0 ? Math.floor(time) : null;
   }
 
   // A trimmed string; null, undefined, and non-strings read as "".

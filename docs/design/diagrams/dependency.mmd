@@ -1,17 +1,21 @@
 flowchart LR
     App["App.tsx"] --> Root["CompositionRoot<br/>(bootstrap.ts)"]
     App --> Model["LibraryAppModel"]
+    App -- picks one --> Devices["PhoneDevices /<br/>BrowserDevices"]
+    Model --> Account["AccountModel"]
     Model --> Controller["LibraryController"]
-    Model --> Camera["CoverCamera<br/>«interface»"]
-    ExpoCam["ExpoCoverCamera"] -. implements .-> Camera
+    Model --> Family["DeviceFamily<br/>«interface»"]
+    Devices -. implements .-> Family
     Controller --> UC["UseCases"]
-    UC --> Domain["Domain<br/>Book · PersonalLibrary ·<br/>AcquisitionRecord"]
-    UC --> Ports["Ports «interfaces»<br/>BookRepository · IsbnLookup"]
-    Repos["SqliteBookRepository<br/>JsonBookRepository"] -. implements .-> Ports
-    Lookups["CachingIsbnLookup → MergedIsbnLookup →<br/>OpenLibrary + GoogleBooks"] -. implements .-> Ports
+    Account --> AUC["AccountUseCases"]
+    UC --> Domain["Domain<br/>Book, PersonalLibrary,<br/>AcquisitionRecord,<br/>Credentials"]
+    AUC --> Domain
+    UC --> Ports["Ports «interfaces»<br/>BookRepository<br/>IsbnLookup, SyncStore<br/>LibraryBackup, Accounts"]
+    AUC --> Ports
+    Adapters["Data adapters<br/>Sqlite / Json repositories<br/>Caching → Merged lookups<br/>Supabase accounts, backup"] -. implements .-> Ports
     Root --> UC
-    Root --> Repos
-    Root --> Lookups
-    Lookups --> Http["Http"]
-    Repos --> Mapper["BookRowMapper"]
+    Root --> AUC
+    Root --> Adapters
+    Adapters --> Http["Http"]
+    Adapters --> Mapper["BookRowMapper"]
     Mapper --> Domain

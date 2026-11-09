@@ -1,12 +1,10 @@
 /**
  * Component: FlashBanner — the short message under the header (tap to dismiss).
- * The model hides it after 3 seconds; this draws it, taps the phone when it
- * appears (a buzz for errors), and has screen readers read it out.
+ * The model hides it after 3 seconds (and gives the haptic tap or buzz when it
+ * appears); this draws it and has screen readers read it out.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect } from "react";
 import { Text } from "react-native";
-import { Haptics } from "../device/haptics";
 import { FlashTone } from "../model/libraryAppModel";
 import { styles } from "../styles/flashBanner.styles";
 import { icon, theme } from "../styles/theme";
@@ -19,12 +17,6 @@ export function FlashBanner({
   flash: { text: string; tone: FlashTone } | null;
   onDismiss: () => void;
 }) {
-  useEffect(() => {
-    if (flash) {
-      Haptics.message(flash.tone === "danger");
-    }
-  }, [flash]);
-
   if (!flash) {
     return null;
   }

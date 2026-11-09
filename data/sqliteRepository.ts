@@ -1,11 +1,13 @@
 /**
- * Data: SqliteBookRepository implements the BookRepository and IsbnCache ports on device.
- * Owns the schema and its upgrades; row ↔ Book conversion is BookRowMapper's job.
+ * Data: SqliteBookRepository implements the BookRepository, IsbnCache and SyncStore
+ * ports on device. Owns the schema and its upgrades; row ↔ Book conversion is
+ * BookRowMapper's job. A delete keeps the row as a tombstone so the deletion syncs.
  * Only CompositionRoot (bootstrap.ts) opens it; nothing else imports expo-sqlite.
  */
 import * as SQLite from "expo-sqlite";
 import { Acquisition, Book, BookFormat, PersonalLibrary, ReadingStatus, Shelf } from "../domain";
-import { BookMetadata, BookRepository, IsbnCache } from "../service/ports";
+import { BookMetadata, BookRepository, BookVersion, IsbnCache, SyncStore } from "../service/ports";
+import { Clock } from "./bookRepository";
 import { BookRow, BookRowMapper } from "./bookRowMapper";
 
 // Mutable book columns, shared by UPDATE and INSERT so the list is written once.
@@ -25,6 +27,8 @@ const BOOK_COLUMNS = [
   "page_count",
   "subjects",
   "format",
+  "updated_at",
+  "deleted_at",
 ] as const;
 
 // Columns added after the first release: [table, column, type + default].
@@ -44,21 +48,26 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   ["books", "format", "TEXT NOT NULL DEFAULT 'UNKNOWN'"],
   ["isbn_cache", "format", "TEXT NOT NULL DEFAULT 'UNKNOWN'"],
   ["isbn_cache", "cover_candidates", "TEXT NOT NULL DEFAULT '[]'"],
+  ["books", "updated_at", "INTEGER NOT NULL DEFAULT 0"],
+  ["books", "deleted_at", "INTEGER"],
 ];
 
 // Marker column for the current lookup format (edition-first + Google Books with
 // cover-by-ISBN). A database without it holds older lookups: they are dropped once.
 const CACHE_VERSION_COLUMN = "parser_v4";
 
-export class SqliteBookRepository implements BookRepository, IsbnCache {
+export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStore {
   private queue: Promise<void> = Promise.resolve();
 
-  private constructor(private readonly db: SQLite.SQLiteDatabase) {}
+  private constructor(
+    private readonly db: SQLite.SQLiteDatabase,
+    private readonly clock: Clock,
+  ) {}
 
   // Factory: the constructor is private so a repository is never used before migrate().
-  static async open(): Promise<SqliteBookRepository> {
+  static async open(clock: Clock = Date.now): Promise<SqliteBookRepository> {
     const db = await SQLite.openDatabaseAsync("myhomelib.db", { useNewConnection: true });
-    const repo = new SqliteBookRepository(db);
+    const repo = new SqliteBookRepository(db, clock);
     await repo.migrate();
     return repo;
   }
@@ -96,6 +105,8 @@ export class SqliteBookRepository implements BookRepository, IsbnCache {
         page_count INTEGER NOT NULL DEFAULT 0,
         subjects TEXT NOT NULL DEFAULT '',
         format TEXT NOT NULL DEFAULT 'UNKNOWN',
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        deleted_at INTEGER,
         UNIQUE (owner_id, isbn)
       );`;
   }
@@ -201,43 +212,58 @@ export class SqliteBookRepository implements BookRepository, IsbnCache {
   async loadLibrary(ownerId: string): Promise<PersonalLibrary> {
     return this.enqueue(async () => {
       const rows = await this.db.getAllAsync<Record<string, unknown>>(
-        "SELECT * FROM books WHERE owner_id = ?",
+        "SELECT * FROM books WHERE owner_id = ? AND deleted_at IS NULL",
         [ownerId],
       );
       return new PersonalLibrary(rows.map((row) => BookRowMapper.toBook(this.mapRow(row))));
     });
   }
 
+  // Insert, or update this owner's row for the ISBN (reviving a deleted one).
   async save(ownerId: string, book: Book): Promise<Book> {
     return this.enqueue(async () => {
-      // This owner already has the ISBN → UPDATE that row; otherwise INSERT a new one.
-      // Every value is a bound parameter; only the fixed column names are spliced in.
-      const existing = await this.db.getFirstAsync<{ isbn: string }>(
-        "SELECT isbn FROM books WHERE owner_id = ? AND isbn = ?",
-        [ownerId, book.isbn],
-      );
-      const values = this.bookValues(book);
-      if (existing) {
-        await this.db.runAsync(
-          `UPDATE books SET ${BOOK_COLUMNS.map((column) => `${column}=?`).join(", ")} WHERE owner_id=? AND isbn=?`,
-          [...values, ownerId, book.isbn],
-        );
-        return book;
-      }
-      await this.db.runAsync(
-        `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")})
-         VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")})`,
-        [ownerId, book.isbn, ...values],
-      );
+      await this.upsert(BookRowMapper.toRow(ownerId, book, this.clock()));
       return book;
     });
   }
 
+  // Soft delete: the row stays as a tombstone so the deletion syncs.
   async delete(ownerId: string, isbn: string): Promise<void> {
-    return this.enqueue(() =>
-      this.db.runAsync("DELETE FROM books WHERE owner_id = ? AND isbn = ?", [ownerId, isbn]).then(
-        () => undefined,
-      ),
+    return this.enqueue(async () => {
+      const now = this.clock();
+      await this.db.runAsync(
+        "UPDATE books SET deleted_at = ?, updated_at = ? WHERE owner_id = ? AND isbn = ? AND deleted_at IS NULL",
+        [now, now, ownerId, isbn],
+      );
+    });
+  }
+
+  async versions(ownerId: string): Promise<BookVersion[]> {
+    return this.enqueue(async () => {
+      const rows = await this.db.getAllAsync<Record<string, unknown>>("SELECT * FROM books WHERE owner_id = ?", [ownerId]);
+      return rows.map((row) => BookRowMapper.toVersion(this.mapRow(row)));
+    });
+  }
+
+  // A version replaces the stored row only if it is newer, so a change made
+  // while a sync was running is never overwritten by an older copy.
+  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+    return this.enqueue(async () => {
+      for (const version of versions) {
+        await this.upsert(BookRowMapper.fromVersion(ownerId, version), "WHERE excluded.updated_at > books.updated_at");
+      }
+    });
+  }
+
+  // One row in, by (owner, ISBN), optionally only when `condition` holds. Every
+  // value is a bound parameter; only fixed column names and clauses are spliced in.
+  private async upsert(row: BookRow, condition = ""): Promise<void> {
+    await this.db.runAsync(
+      `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")})
+       VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")})
+       ON CONFLICT (owner_id, isbn) DO UPDATE SET ${BOOK_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}
+       ${condition}`,
+      [row.ownerId, row.isbn, ...SqliteBookRepository.values(row)],
     );
   }
 
@@ -289,24 +315,26 @@ export class SqliteBookRepository implements BookRepository, IsbnCache {
     });
   }
 
-  // Same order as BOOK_COLUMNS. No acquisition is stored as NULL, as the schema intends.
-  private bookValues(book: Book): (string | number | null)[] {
+  // Same order as BOOK_COLUMNS. No acquisition (or no deletion) is stored as NULL.
+  private static values(row: BookRow): (string | number | null)[] {
     return [
-      book.title,
-      book.author,
-      book.coverUrl,
-      book.publisher,
-      book.shelf,
-      book.copyCount,
-      book.acquiredAs,
-      book.giftedBy,
-      book.readingStatus,
-      book.series,
-      book.description,
-      book.published,
-      book.pageCount,
-      book.subjects,
-      book.format,
+      row.title,
+      row.author,
+      row.coverUrl,
+      row.publisher,
+      row.shelf,
+      row.copyCount,
+      row.acquiredAs,
+      row.giftedBy,
+      row.readingStatus,
+      row.series,
+      row.description,
+      row.published,
+      row.pageCount,
+      row.subjects,
+      row.format,
+      row.updatedAt,
+      row.deletedAt,
     ];
   }
 
@@ -331,6 +359,8 @@ export class SqliteBookRepository implements BookRepository, IsbnCache {
       pageCount: row.page_count as number | undefined,
       subjects: row.subjects as string | undefined,
       format: row.format as BookFormat | undefined,
+      updatedAt: row.updated_at as number | undefined,
+      deletedAt: row.deleted_at as number | null | undefined,
     });
   }
 }

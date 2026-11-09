@@ -1,0 +1,38 @@
+# Keep Supabase awake: a free Supabase project pauses after about a week
+# without activity (ADR-012). Twice a week this asks the shared project's
+# library_books table for one row, using only the public (publishable) key
+# that is already in bootstrap.ts. Signed-out callers have no access, so the
+# database answers "permission denied" (42501) and no books are returned, but
+# the request still reaches Postgres and counts as activity.
+#
+# The job fails, and GitHub emails the repo owner, if the project does not
+# answer that way (for example, it is already paused and must be restored
+# from the Supabase dashboard).
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "0 14 * * 1,4" # Mondays and Thursdays, 14:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://abpyekzqvmjulnlpmowv.supabase.co
+      SUPABASE_PUBLIC_KEY: sb_publishable_h1dki90msp5JxM2qoNfRkA_wgLoFZAw
+    steps:
+      - name: Ping the library_books table
+        run: |
+          status=$(curl -s -o reply.json -w "%{http_code}" --max-time 60 \
+            "$SUPABASE_URL/rest/v1/library_books?select=owner_id&limit=1" \
+            -H "apikey: $SUPABASE_PUBLIC_KEY")
+          echo "HTTP $status: $(cat reply.json)"
+          if [ "$status" = "200" ] || grep -q '"42501"' reply.json; then
+            echo "The database answered; the project is awake."
+          else
+            echo "::error::Supabase did not answer as expected. Check the project in the dashboard and restore it if it is paused."
+            exit 1
+          fi

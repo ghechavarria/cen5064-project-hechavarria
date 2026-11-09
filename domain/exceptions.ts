@@ -27,6 +27,8 @@ export class InvalidIsbnError extends DomainError {
   }
 }
 
+export class InvalidCredentialsError extends DomainError {}
+
 export class IsbnNotFoundError extends DomainError {
   constructor(isbn: string) {
     super(`No book found for ISBN ${isbn}`);

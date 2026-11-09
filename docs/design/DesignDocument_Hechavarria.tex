@@ -9,6 +9,7 @@
 \urlstyle{same}
 \usepackage{hyperref}
 \usepackage{float}
+\usepackage{pdflscape}
 \usepackage[section]{placeins}
 \usepackage{enumitem}
 \usepackage{array}
@@ -81,7 +82,7 @@
 
 \vspace{2cm}
 
-{\large Version 1.2}
+{\large Version 1.4}
 
 \vspace{3cm}
 
@@ -127,12 +128,54 @@ October 10, 2026
 \hline
 1.2 & Grace Hechavarria & SOLID refactor (Interface Segregation): \texttt{BookRepository} no longer extends \texttt{IsbnCache}, so use cases depend only on the library methods they call and the planned sync store need not cache lookups; 146 automated tests. & November 6, 2026 \\
 \hline
+1.3 & Grace Hechavarria & Creational pattern map (\texttt{docs/pattern-map.md}); Abstract Factory for the device services (\texttt{DeviceFamily}: \texttt{PhoneDevices} / \texttt{BrowserDevices}, ADR-011); 151 automated tests. & November 6, 2026 \\
+\hline
+1.4 & Grace Hechavarria & Midterm feedback on the document: every diagram enlarged, split or laid out again to print at 7pt or more (it was 2.6--5.8pt); a one-page Key Design Decisions section up front; the proposed timeline condensed and repeated figures and text removed. & November 7, 2026 \\
+\hline
+1.5 & Grace Hechavarria & Core feature 4 built: email accounts and library sync through Supabase (ADR-012) instead of the planned Google sign-in; sign-in required to see or add books; sync where the latest change wins, deletes travel as tombstones, and Realtime pushes changes to other phones; Expo SDK 58. Diagrams updated (Supabase in the C4 views, the account classes, the sign-in and sync sequence, the synced table); 195 automated tests. & November 7, 2026 \\
+\hline
 \end{tabular}
 \end{table}
 
 \newpage
 
 \tableofcontents
+
+\newpage
+
+\section*{Key Design Decisions}
+\addcontentsline{toc}{section}{Key Design Decisions}
+
+MyHomeLib is a phone app for cataloging a home library by ISBN. The decisions that shape it, each recorded as an Architecture Decision Record (ADR) in \texttt{docs/adr/}:
+
+\medskip
+\noindent
+\begin{tabular}{|L{4.2cm}|L{9.2cm}|L{1.6cm}|}
+\hline
+\textbf{Decision} & \textbf{What and why} & \textbf{ADR} \\
+\hline
+Four-tier modular monolith & One TypeScript codebase in four folders: Presentation $\rightarrow$ Service $\rightarrow$ Domain; Data implements the Service's ports and is wired in only by \texttt{bootstrap.ts}. The rules can be tested without a phone, and storage or book sources can change without touching them. Automated tests enforce the dependency rule. & 001, 009 \\
+\hline
+Expo Go on the phone & The review partner can run it without a Mac or a paid account. The browser build is a limited fallback (no camera). & 005 \\
+\hline
+SQLite on the device & One data store; the browser build keeps the same rows as JSON behind the same port, translated only by \texttt{BookRowMapper}. & 002 \\
+\hline
+Official book APIs, exact edition & Open Library, plus optional Google Books, asked together, merged edition-first and cached; no scraping. The owner confirms the cover that matches their copy. & 003, 004, 006 \\
+\hline
+Rules live in the domain & \texttt{Book}, \texttt{PersonalLibrary}, \texttt{Purchase} and \texttt{Gift} enforce the rules (a duplicate ISBN adds a copy; an Owned book needs a purchase or a named gift), so no screen can bypass them. & 001 \\
+\hline
+MVVM and a design system & One view-model class holds every screen's state and flow; components only render, with tokens and imported stylesheets. & 007, 008 \\
+\hline
+Device services as one family & The camera and haptic feedback come from one family per platform (Abstract Factory), chosen once. & 011 \\
+\hline
+Validate at the edges & A mistyped ISBN is refused before any network call; unreachable sources time out with one clear error; damaged saved data still loads. & 010 \\
+\hline
+Accounts and sync through Supabase & Email sign-in that runs in Expo Go (Google sign-in needs a native build that is not free on iPhone). The phone's store stays the working copy; a Supabase table holds each account's synced copy behind row level security. Per book the latest change wins, deletes travel as tombstones, and Realtime tells the other phones. & 012 \\
+\hline
+\end{tabular}
+
+\medskip
+\noindent\textbf{Scope for the final}, frozen at the midterm check-in: (1) scan a book, (2) shelve it with the rules enforced, (3) browse and manage the library, and (4) account sign-in and library sync. All four are built and tested; feature 4 was built with email accounts instead of Google sign-in (ADR-012).
 
 \newpage
 
@@ -148,7 +191,7 @@ October 10, 2026
     \item \textbf{Scan a book:} scan or type an ISBN to look up the exact edition from Open Library and Google Books, then pick the cover that matches your copy or photograph it.
     \item \textbf{Shelve it, with rules enforced:} file the book as Owned or Wanted, and as read or unread. An Owned book must be marked purchased or gifted, and a gift needs the giver's name. Scanning a book you already have adds a copy instead of a duplicate.
     \item \textbf{Browse and manage your library:} see To Be Read (unread and read), the Owned catalog grouped A--Z, by author or by series, and the Wanted list. From a book's page you can mark it read, move it, change its cover, or delete it.
-    \item \textbf{Google Account library sync} (planned for weeks 10--11, not built yet): sign in with a Google account to keep your library synced and backed up to your account across sessions and devices.
+    \item \textbf{Account sign-in and library sync:} sign in with an email and a password (required to see or add books) to keep your library backed up and in sync on all your phones, automatically. Each phone's copy works offline; the latest change to a book wins, and a book deleted on one phone is deleted on the others.
 \end{enumerate}
 
 \textbf{Within course limits:} one data store (SQLite on the device), a four-tier architecture, official book APIs only (no scraping), and an app the review partner can run without a Mac or paid accounts. This document describes that design for the course instructor, the peer review partner, and any engineer who will maintain the system: how it is divided into tiers and components, how they communicate, why the main decisions were made, and how each requirement was verified.
@@ -160,8 +203,8 @@ The primary customer is the end user: a bibliophile who owns a large or growing 
 The course and instructor set the following constraints, which shaped the design:
 \begin{itemize}
     \item \textbf{Platform a partner can run.} The review partner must be able to clone the repository and run the app without a Mac, Xcode, Android Studio, or a paid developer account. This led to Expo Go (ADR-001, ADR-005).
-    \item \textbf{One data store.} The project may use a single persistence technology. On a phone that is SQLite; on the web fallback the same port is backed by browser storage (ADR-002). Feature 4 is planned to keep this: the device store stays the only working store, and the account copy is a backup of it, reached through the same \texttt{BookRepository} port; the approach will be recorded in an ADR before it is built.
-    \item \textbf{Limited external integrations, and no scraping.} Bookstore web scraping was proposed early and dropped at the instructor's request (ADR-004). Book metadata comes only from official APIs: Open Library (no key) and, optionally, Google Books (free key) (ADR-003, ADR-006).
+    \item \textbf{One data store.} The project may use a single persistence technology. On a phone that is SQLite; on the web fallback the same port is backed by browser storage (ADR-002). Feature 4 keeps the device store as the only working store: the Supabase table is a synced copy of it, reached through separate ports (\texttt{SyncStore}, \texttt{LibraryBackup}), and ADR-012 records it as a second store.
+    \item \textbf{Limited external integrations, and no scraping.} Bookstore web scraping was proposed early and dropped at the instructor's request (ADR-004). Book metadata comes only from official APIs: Open Library (no key) and, optionally, Google Books (free key) (ADR-003, ADR-006). Accounts and sync use Supabase through its official client (ADR-012).
     \item \textbf{Documented architecture.} The repository must show a tier breakdown, C4 diagrams (Context, Container, Component), UML class and sequence diagrams, and Architecture Decision Records, and the code must follow them.
     \item \textbf{Code quality.} The code must use classes to bundle data with behavior, apply the object-oriented techniques that fit the problem, avoid duplication, and keep every stylesheet in its own imported file.
     \item \textbf{Semester timeline.} Work is planned in weekly sprints from August to November 2026.
@@ -176,7 +219,7 @@ The stakeholders are:
     \item \textbf{The bibliophile (primary user)}, who scans, shelves, and browses their own books.
     \item \textbf{The course instructor}, who evaluates the architecture, the code quality, and this document.
     \item \textbf{The peer review partner}, who must be able to run the app from the README and compare the diagrams to the code.
-    \item \textbf{External data providers} (Open Library and Google Books), whose public APIs the app depends on and whose terms it must respect.
+    \item \textbf{External services}: Open Library and Google Books (book data) and Supabase (accounts and the synced copy), whose public APIs the app depends on and whose terms it must respect.
 \end{itemize}
 
 \subsection{Application Overview: Characteristics, Features, Differentiation, and Impact}
@@ -190,13 +233,14 @@ The core features are:
     \item \textbf{Owned catalog} grouped A--Z, by author, or by series, with an A--Z letter rail for fast scrolling.
     \item \textbf{Domain rules}: scanning an ISBN that is already cataloged adds a copy instead of a second entry; a book cannot be Owned unless it was purchased or gifted; a gift requires the giver's name; reading status is independent of the shelf.
     \item \textbf{Book detail} with edition facts, binding, read/unread toggle, shelf moves, a cover photo option, and deletion with confirmation.
+    \item \textbf{Accounts and sync}: email sign-in, and the library kept in sync on every phone signed in to the same account.
 \end{enumerate}
 
-Unlike reading-tracker apps, MyHomeLib records the physical copy: which edition and binding it is, how many copies the owner has, and whether each one was bought or received as a gift. It runs on the user's device and works offline, so the library stays private; the planned Google Account sync (feature 4) adds an optional backup to the owner's own account, not a shared service. The expected impact is fewer duplicate purchases, a reliable to-be-read list, and a record of gifts.
+Unlike reading-tracker apps, MyHomeLib records the physical copy: which edition and binding it is, how many copies the owner has, and whether each one was bought or received as a gift. It runs on the user's device and works offline, so the library stays private; account sync (feature 4) keeps a copy in the owner's own account, which row level security keeps from every other account; it is not a shared catalog. The expected impact is fewer duplicate purchases, a reliable to-be-read list, and a record of gifts.
 
 \subsection{Scope}
 
-This document covers the midterm version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and six major components: the Presentation view model, the Service use cases, the Domain model, the book repositories, the book-source adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. The scope for the final is frozen to the four core features in Section~1.1: features 1--3 are built and are being completed and tested; feature 4 (Google Account library sync) is planned for weeks 10--11. Out of scope: sharing between users, price tracking, bookstore integrations, and anything else not listed as a core feature. Three scope changes are acknowledged against the approved proposal: the bookstore price check was removed (ADR-004); Google Books was added as an optional second metadata source so that scans match the exact edition (ADR-006), through its official API, with the app still working without it; and Google Account sign-in with library sync was added as the fourth core feature when the scope was frozen at the midterm check-in.
+This document covers the final version of MyHomeLib. The system consists of four tiers (Presentation, Service, Domain, Data) and seven major components: the Presentation view models, the Service use cases, the Domain model, the book repositories, the book-source adapters, the account adapters, and the device adapters (camera and haptics). Each component is described in Section~\ref{sec:components}. The scope for the final is frozen to the four core features in Section~1.1: all four are built and tested. Out of scope: sharing between users, price tracking, bookstore integrations, and anything else not listed as a core feature. Three scope changes are acknowledged against the approved proposal: the bookstore price check was removed (ADR-004); Google Books was added as an optional second metadata source so that scans match the exact edition (ADR-006), through its official API, with the app still working without it; and account sign-in with library sync was added as the fourth core feature when the scope was frozen at the midterm check-in. It was planned as Google sign-in and built with email accounts through Supabase, because Google sign-in needs a custom native build that is not free on iPhone (ADR-012); password reset is left out for now, because on Supabase's free plan the reset email cannot carry a code the app could use.
 
 \subsection{Definitions, Acronyms and Abbreviations}
 
@@ -212,8 +256,12 @@ ISBN & International Standard Book Number; ISBN-13 barcodes are EAN-13 \\
 MVVM & Model--View--ViewModel: a presentation pattern in which an observable view model holds screen state and logic \\
 OOP & Object-Oriented Programming \\
 Port & An interface owned by the Service tier that the Data tier implements \\
+Realtime & Supabase's live change notices, which tell a phone that its account's rows changed \\
+RLS & Row level security: database rules that let a signed-in account read and write only its own rows \\
 SDD & Software Design Document \\
+Supabase & Hosted service (Postgres database, sign-in, Realtime) that holds the accounts and each account's synced copy of the library \\
 TBR & ``To be read'': Owned books, split into Unread and Read \\
+Tombstone & A deleted book's row kept with its deletion time, so the deletion syncs to other phones \\
 UML & Unified Modeling Language \\
 WCAG & Web Content Accessibility Guidelines \\
 \hline
@@ -231,6 +279,7 @@ The requirements, domain rules, feature decisions, and design direction were set
 \item Internet Archive. (n.d.). \textit{Open Library APIs}. Retrieved from \url{https://openlibrary.org/developers/api}
 \item Google. (n.d.). \textit{Books API}. Retrieved from \url{https://developers.google.com/books}
 \item Brown, S. (n.d.). \textit{The C4 model for visualising software architecture}. Retrieved from \url{https://c4model.com/}
+\item Supabase. (n.d.). \textit{Supabase documentation}. Retrieved from \url{https://supabase.com/docs}
 \end{itemize}
 
 %==========================================================================
@@ -238,16 +287,16 @@ The requirements, domain rules, feature decisions, and design direction were set
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.85\textwidth, height=0.22\textheight, keepaspectratio]{figures/context.png}
+\includegraphics[width=\textwidth, height=0.6\textheight, keepaspectratio]{figures/context.png}
 \caption{C4 Level 1 -- System Context}
 \label{fig:context}
 \end{figure}
 
-Figure~\ref{fig:context} shows MyHomeLib in its environment. A single type of user, the bibliophile, catalogs books with the app. The app depends on two external systems for book metadata: Open Library, which needs no key, and Google Books, which is optional and needs a free API key. Everything else runs on the user's device.
+Figure~\ref{fig:context} shows MyHomeLib in its environment. A single type of user, the bibliophile, catalogs books with the app. The app depends on three external systems: Open Library, which needs no key, and Google Books, which needs a free API key, for book metadata; and Supabase, which holds the accounts and each account's synced copy of the library. Everything else runs on the user's device, and the device's copy keeps working offline.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.36\textheight, keepaspectratio]{figures/system-overview.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/system-overview.png}
 \caption{C4 Level 2 -- Container (System Architecture)}
 \label{fig:system_architecture}
 \end{figure}
@@ -255,15 +304,15 @@ Figure~\ref{fig:context} shows MyHomeLib in its environment. A single type of us
 Figure~\ref{fig:system_architecture} shows the architecture chosen for MyHomeLib: a \textbf{four-tier modular monolith} in one TypeScript codebase. The tiers are folders with a strict dependency direction, enforced by automated tests:
 
 \begin{itemize}
-    \item \textbf{Presentation} (\texttt{presentation/}): React Native screens rendered by Expo, and the \texttt{LibraryAppModel} view model that holds all screen state and user flows. Components only render and forward taps.
-    \item \textbf{Service} (\texttt{service/}): one class per use case (scan a book, move a book, set reading status, and so on) plus the \emph{ports}, the interfaces that the Data tier implements.
+    \item \textbf{Presentation} (\texttt{presentation/}): React Native screens rendered by Expo, the \texttt{LibraryAppModel} view model that holds all screen state and user flows, and \texttt{AccountModel} for the Account tab. Components only render and forward taps.
+    \item \textbf{Service} (\texttt{service/}): one class per use case (scan a book, move a book, set reading status, sign in, sync the library, and so on) plus the \emph{ports}, the interfaces that the Data tier implements.
     \item \textbf{Domain} (\texttt{domain/}): the business objects and rules: \texttt{Book}, \texttt{PersonalLibrary}, and the acquisition records \texttt{Purchase} and \texttt{Gift}. Domain imports nothing outside itself.
-    \item \textbf{Data} (\texttt{data/}): the adapters to the outside world: SQLite on a phone, browser storage on the web, and the Open Library and Google Books lookups, merged and cached.
+    \item \textbf{Data} (\texttt{data/}): the adapters to the outside world: SQLite on a phone, browser storage on the web, the Open Library and Google Books lookups (merged and cached), and the Supabase sign-in and backup.
 \end{itemize}
 
 Calls always flow Presentation $\rightarrow$ Service $\rightarrow$ Domain and ports, never backwards. The Data tier depends on the Service ports, not the other way around, so the business rules can be tested with in-memory fakes and the storage technology can change without touching them. A composition root (\texttt{bootstrap.ts}) is the only place that chooses concrete adapters and wires them into the use cases.
 
-Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the web. Feature 4, Google Account library sync, is planned to fit this architecture: a new repository adapter behind the same port, with every book already stored per owner, so the use cases and the domain do not change.
+Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the web. Feature 4, account sign-in and library sync, fits this architecture: three new ports (\texttt{SyncStore}, \texttt{LibraryBackup}, \texttt{Accounts}) with Supabase adapters, and every book already stored per owner, so the library use cases and the domain rules did not change (ADR-012).
 
 %==========================================================================
 \section{System Components}
@@ -271,43 +320,51 @@ Because MyHomeLib runs in Expo Go, the same code reaches iOS, Android, and the w
 
 \subsection{Decomposition Description}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth, height=0.5\textheight, keepaspectratio]{figures/decomposition.png}
-\caption{System Decomposition Diagram (folders and their classes)}
-\label{fig:decomposition}
-\end{figure}
-
 Figure~\ref{fig:decomposition} shows a top-down decomposition of the codebase. Each tier is a folder, and each folder holds classes with one responsibility each:
 
-The \textbf{Presentation view model} (\texttt{presentation/model/}) is the controller of the C4 component view. \texttt{LibraryAppModel} extends a reusable \texttt{Observable} base class and holds every screen's state: the selected tab, the open popup, the scan draft, and the flash message. \texttt{LibraryController} turns screen intents into use case calls and returns a \texttt{LibraryView} snapshot. Helper classes keep logic out of the views: \texttt{ScanDraft} (a scan in progress), \texttt{Catalog} and its grouping strategies, \texttt{AlphabetRail} (letter-rail math), \texttt{Labels} (all display wording), and \texttt{PromptActions} (popup buttons).
+The \textbf{Presentation view model} (\texttt{presentation/model/}) is the controller of the C4 component view. \texttt{LibraryAppModel} extends a reusable \texttt{Observable} base class and holds every screen's state: the selected tab, the open popup, the scan draft, and the flash message. \texttt{LibraryController} turns screen intents into use case calls and returns a \texttt{LibraryView} snapshot. Helper classes keep logic out of the views: \texttt{ScanDraft} (a scan in progress), \texttt{Catalog} and its grouping strategies, \texttt{AlphabetRail} (letter-rail math), \texttt{Labels} (all display wording), and \texttt{PromptActions} (popup buttons). \texttt{AccountModel}, also an \texttt{Observable}, holds the Account tab (the form, the signed-in account, and how the last sync went); \texttt{LibraryAppModel} follows it, showing the signed-in account's books and an empty, locked library when nobody is signed in.
 
 The \textbf{Presentation views} (\texttt{presentation/components/} and \texttt{presentation/styles/}) are React components that only render. Every component imports its stylesheet from \texttt{styles/}, and every color, size, and font comes from the theme tokens. Shared building blocks (\texttt{Tappable}, \texttt{TextField}, \texttt{BookCover}, \texttt{CoverBackdrop}, \texttt{Logo}, \texttt{Reveal}) replace repeated code.
 
-The \textbf{Device adapters} (\texttt{presentation/device/}) wrap phone hardware: \texttt{ExpoCoverCamera} implements the \texttt{CoverCamera} interface for cover photos, and \texttt{Haptics} gives physical feedback.
+The \textbf{Device families} (\texttt{presentation/device/}) wrap the device: \texttt{PhoneDevices} creates the real camera (\texttt{ExpoCoverCamera}) and haptics (\texttt{HapticFeedback}); \texttt{BrowserDevices} creates a camera that points to the phone app and silent feedback. Both implement the \texttt{DeviceFamily} interface (Abstract Factory, ADR-011).
 
-The \textbf{Service use cases} (\texttt{service/}) orchestrate one user goal each. Eight use case classes are built once by the \texttt{UseCases} class from two ports.
+The \textbf{Service use cases} (\texttt{service/}) orchestrate one user goal each. Eight library use case classes are built once by the \texttt{UseCases} class from two ports; the sign-up, sign-in and sign-out use cases and \texttt{SyncLibraryUseCase} are built by \texttt{AccountUseCases} from three more.
 
 The \textbf{Domain model} (\texttt{domain/}) enforces the collection rules. Its state is private and changes only through methods that check the rules.
 
-The \textbf{Book repositories} (\texttt{data/}) persist the library: \texttt{SqliteBookRepository} on a phone, \texttt{JsonBookRepository} on the web, and \texttt{MemoryBookRepository} for tests, all translating rows through \texttt{BookRowMapper}.
+The \textbf{Book repositories} (\texttt{data/}) persist the library: \texttt{SqliteBookRepository} on a phone, \texttt{JsonBookRepository} on the web, and \texttt{MemoryBookRepository} for tests, all translating rows through \texttt{BookRowMapper}. Each also serves sync: every save is stamped with its time, and a delete leaves a tombstone.
 
 The \textbf{Book-source adapters} (\texttt{data/}) look up an ISBN: \texttt{OpenLibraryIsbnLookup} and \texttt{GoogleBooksIsbnLookup}, combined by \texttt{MergedIsbnLookup} and cached by \texttt{CachingIsbnLookup}. All HTTP goes through one \texttt{Http} class.
 
+The \textbf{Account adapters} (\texttt{data/}) reach Supabase: \texttt{SupabaseConnection} creates the one client (the session kept in AsyncStorage), \texttt{SupabaseAccounts} signs in and explains every failure in plain words, and \texttt{SupabaseLibraryBackup} reads and writes the \texttt{library\_books} table in pages and watches it through Realtime. \texttt{UnconfiguredAccounts} and \texttt{UnconfiguredLibraryBackup} are Null Objects for a build with no Supabase settings.
+
+\begin{landscape}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth, height=0.9\textheight, keepaspectratio]{figures/decomposition.png}
+\caption{System Decomposition Diagram (folders and their main classes; a dotted arrow means ``implements''; the text below lists every class)}
+\label{fig:decomposition}
+\end{figure}
+\end{landscape}
+
+
 \subsection{Dependency Description}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth, height=0.36\textheight, keepaspectratio]{figures/dependency.png}
-\caption{System Dependency Diagram}
-\label{fig:dependency}
-\end{figure}
+Figure~\ref{fig:dependency} shows how each module depends on the others. \texttt{App.tsx} creates the \texttt{LibraryAppModel}, which uses \texttt{LibraryController} to reach the \texttt{UseCases}. The use cases depend on the Domain classes and on two \emph{interfaces}, \texttt{BookRepository} and \texttt{IsbnLookup}. The concrete repositories and lookups depend on those interfaces (they implement them), which inverts the usual direction: Service never imports Data (the Dependency Inversion Principle, ADR-009). \texttt{AccountModel} reaches \texttt{AccountUseCases} the same way; their ports (\texttt{Accounts}, \texttt{LibraryBackup}, \texttt{SyncStore}) are implemented by the Supabase adapters and the device stores.
 
-Figure~\ref{fig:dependency} shows how each module depends on the others. \texttt{App.tsx} creates the \texttt{LibraryAppModel}, which uses \texttt{LibraryController} to reach the \texttt{UseCases}. The use cases depend on the Domain classes and on two \emph{interfaces}, \texttt{BookRepository} and \texttt{IsbnLookup}. The concrete repositories and lookups depend on those interfaces (they implement them), which inverts the usual direction: Service never imports Data (the Dependency Inversion Principle, ADR-009).
-
-\texttt{CompositionRoot} in \texttt{bootstrap.ts} is the only module that knows every concrete class. At start-up it opens SQLite (or browser storage when SQLite is unavailable), wraps the merged book sources in the cache, and hands the finished \texttt{UseCases} to the view model. The camera follows the same idea one tier up: the view model depends on the \texttt{CoverCamera} interface, and the app passes \texttt{ExpoCoverCamera} while tests pass a fake.
+\texttt{CompositionRoot} in \texttt{bootstrap.ts} is the only module that knows every concrete class. At start-up it opens SQLite (or browser storage when SQLite is unavailable), wraps the merged book sources in the cache, builds \texttt{AccountUseCases} with the Supabase adapters (the project named in \texttt{.env}, or the shared one built into the app), and hands both to the view models. The device services follow the same idea one tier up: the view model depends on the \texttt{DeviceFamily} interface, \texttt{App.tsx} passes \texttt{PhoneDevices} or \texttt{BrowserDevices}, and tests pass a fake family.
 
 These rules are not only documented; \texttt{tests/architecture.test.ts} reads every source file and fails if Domain imports anything outside Domain, if Service imports Data or calls \texttt{fetch}, if Data imports Presentation or React, if Presentation reaches a repository, if a component defines its own stylesheet, or if any file other than \texttt{App.tsx} reaches the composition root.
+
+\begin{landscape}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth, height=0.9\textheight, keepaspectratio]{figures/dependency.png}
+\caption{System Dependency Diagram (the Data adapters are grouped; Figures~\ref{fig:iface_data}, \ref{fig:iface_sources} and~\ref{fig:class_accounts} show each class)}
+\label{fig:dependency}
+\end{figure}
+\end{landscape}
+
 
 \subsection{Interface Description}
 
@@ -315,18 +372,18 @@ These rules are not only documented; \texttt{tests/architecture.test.ts} reads e
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.48\textheight, keepaspectratio]{figures/iface-presentation.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-presentation.png}
 \caption{Presentation View Model Interface}
 \label{fig:iface_presentation}
 \end{figure}
 
-Figure~\ref{fig:iface_presentation} shows the interface between the screens and the rest of the app. Screens read \texttt{LibraryAppModel}'s state and derived values (\texttt{heading}, \texttt{hint}, \texttt{page}, \texttt{bookList}) and call its intent methods (\texttt{scan}, \texttt{confirmScan}, \texttt{chooseGifted}, \texttt{moveSelected}, \ldots). React subscribes through one hook, \texttt{useObservable}, so every state change re-renders the screens. The model calls the use cases only through \texttt{LibraryController}, and takes cover photos only through the \texttt{CoverCamera} interface.
+Figure~\ref{fig:iface_presentation} shows the interface between the screens and the rest of the app. Screens read \texttt{LibraryAppModel}'s state and derived values (\texttt{heading}, \texttt{hint}, \texttt{page}, \texttt{bookList}) and call its intent methods (\texttt{scan}, \texttt{confirmScan}, \texttt{chooseGifted}, \texttt{moveSelected}, \ldots). React subscribes through one hook, \texttt{useObservable}, so every state change re-renders the screens. The model calls the use cases only through \texttt{LibraryController}, and gets its camera and feedback only from the \texttt{DeviceFamily} it is given.
 
 \subsubsection{Service Use Cases}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.42\textheight, keepaspectratio]{figures/iface-service.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-service.png}
 \caption{Service Use Case Interface}
 \label{fig:iface_service}
 \end{figure}
@@ -337,7 +394,7 @@ Figure~\ref{fig:iface_service} shows the use case classes. Every library use cas
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.36\textheight, keepaspectratio]{figures/iface-domain.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-domain.png}
 \caption{Domain Model Interface}
 \label{fig:iface_domain}
 \end{figure}
@@ -348,27 +405,38 @@ Figure~\ref{fig:iface_domain} shows the domain interface. \texttt{PersonalLibrar
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.9\textwidth, height=0.3\textheight, keepaspectratio]{figures/iface-data.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-data.png}
 \caption{Book Repository Interface}
 \label{fig:iface_data}
 \end{figure}
 
-Figure~\ref{fig:iface_data} shows the persistence interface. \texttt{BookRepository} (the library) and \texttt{IsbnCache} (looked-up metadata) are separate ports, so the use cases depend only on the library methods they call and a store with no reason to cache lookups, such as the planned Google Account sync, need not implement the cache (Interface Segregation). The three device stores implement both, so one store holds the library and the cached lookups. \texttt{JsonBookRepository} reuses \texttt{MemoryBookRepository} by composition and only adds loading and saving to browser storage. \texttt{BookRowMapper} is the single translation between a stored row and a \texttt{Book} (Data Mapper pattern), including the defaults for rows saved by older versions.
+Figure~\ref{fig:iface_data} shows the persistence interface. \texttt{BookRepository} (the library) and \texttt{IsbnCache} (looked-up metadata) are separate ports, so the use cases depend only on the library methods they call and a store with no reason to cache lookups, such as the account backup, need not implement the cache (Interface Segregation). \texttt{SyncStore} is the sync side: every stored version of a book, tombstones included, and a way to apply versions that keeps their timestamps and never replaces a newer copy. The three device stores implement all three, so one store holds the library, the cached lookups, and what sync needs. \texttt{JsonBookRepository} reuses \texttt{MemoryBookRepository} by composition and only adds loading and saving to browser storage. \texttt{BookRowMapper} is the single translation between a stored row and a \texttt{Book} (Data Mapper pattern), including the defaults for rows saved by older versions.
 
 \subsubsection{Book-Source Adapters}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.3\textheight, keepaspectratio]{figures/iface-sources.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/iface-sources.png}
 \caption{Book-Source Adapter Interface}
 \label{fig:iface_sources}
 \end{figure}
 
 Figure~\ref{fig:iface_sources} shows the lookup chain. Every element implements the same \texttt{IsbnLookup} interface, so they stack as decorators: \texttt{CachingIsbnLookup} answers from the cache or asks \texttt{MergedIsbnLookup}, which asks Google Books and Open Library together, merges the answers field by field (edition data first), and keeps every distinct cover as a candidate. Both sources reach the network only through the \texttt{Http} class.
 
+\subsubsection{Accounts and Sync}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-accounts.png}
+\caption{Accounts and Sync Interface (ADR-012)}
+\label{fig:class_accounts}
+\end{figure}
+
+Figure~\ref{fig:class_accounts} shows feature 4. The account use cases extend \texttt{AccountUseCase}, which holds the \texttt{Accounts} port; each checks the email and password in the domain (\texttt{Credentials}) before any network call. \texttt{SyncLibraryUseCase} compares the phone's versions (\texttt{SyncStore}) with the account's (\texttt{LibraryBackup}) book by book: the newer \texttt{updatedAt} wins in both directions, and on the first sign-in the books kept on the phone move into the account, a book in both adding its copies. Supabase implements both account ports; the Null Objects stand in when the app has no Supabase settings.
+
 \subsubsection{Device Adapters}
 
-The camera and the vibration motor are wrapped so that the view model never touches device APIs directly. \texttt{ExpoCoverCamera} implements \texttt{CoverCamera}: it opens the camera, lets the owner crop to the cover, and shrinks the photo to a small JPEG stored with the book. \texttt{Haptics} gives a light tick when a tab changes, a soft tap for a message, and a buzz for an error, and does nothing on the web. The ISBN barcode scanner is \texttt{IsbnCamera}, a view that reports each new code to the view model.
+The camera and the vibration motor come from one device family, so the view model never touches device APIs directly and a phone service is never mixed with a browser one (Abstract Factory, ADR-011). \texttt{App.tsx} picks the family once. On a phone, \texttt{ExpoCoverCamera} opens the camera, lets the owner crop to the cover, and shrinks the photo to a small JPEG stored with the book, and \texttt{HapticFeedback} gives a light tick when a tab or switch changes, a soft tap for a message, and a buzz for an error. In a browser, the camera explains that it needs the phone app and the feedback is silent. The view model triggers the feedback in the same actions that change the screen. The ISBN barcode scanner is \texttt{IsbnCamera}, a view that reports each new code to the view model.
 
 \subsection{Module Interfaces}
 
@@ -402,14 +470,49 @@ export interface BookRepository {
   save(ownerId: string, book: Book): Promise<Book>;
   delete(ownerId: string, isbn: string): Promise<void>;
 }
+
+/** Account sync (ADR-012): versions are compared book by book. */
+export type BookVersion = { book: Book; updatedAt: number; deletedAt: number | null };
+
+export interface SyncStore {          // the device store's sync side
+  versions(ownerId: string): Promise<BookVersion[]>;
+  applyVersions(ownerId: string, versions: BookVersion[]): Promise<void>;
+}
+
+export interface LibraryBackup {      // the account's copy (Supabase)
+  pull(ownerId: string): Promise<BookVersion[]>;
+  push(ownerId: string, versions: BookVersion[]): Promise<void>;
+  watch(ownerId: string, onChange: () => void): () => void;
+}
+
+export interface Accounts {
+  readonly configured: boolean;
+  current(): Promise<Account | null>;
+  signUp(email: string, password: string): Promise<Account | null>;
+  signIn(email: string, password: string): Promise<Account>;
+  signOut(): Promise<void>;
+  onChange(listener: (account: Account | null) => void): () => void;
+}
 \end{lstlisting}
 
 The Presentation tier owns two more contracts: the device camera, and the reusable observable base class of the view model.
 
 \begin{lstlisting}
 export interface CoverCamera {
+  readonly available: boolean;  // false in the browser build
   // A small image of the cover (data URI), or null if the owner backed out.
   takePhoto(): Promise<string | null>;
+}
+
+export interface Feedback {
+  selection(): void;               // a tab or switch changed
+  message(failed: boolean): void;  // a banner appeared
+}
+
+/** Abstract factory: the device services that belong together. */
+export interface DeviceFamily {
+  createCoverCamera(): CoverCamera;
+  createFeedback(): Feedback;
 }
 
 export abstract class Observable<State> {
@@ -421,7 +524,7 @@ export abstract class Observable<State> {
 
 \subsection{User Interfaces (GUI)}
 
-The interface uses one design system: a dark ``enchanted forest'' background, a single mint accent reserved for selection and primary actions, the Outfit typeface in four weights, and a floating tab dock with TBR, Owned, Wanted, and Scan. All screenshots below were captured from the running application at phone size.
+The interface uses one design system: a dark ``enchanted forest'' background, a single mint accent reserved for selection and primary actions, the Outfit typeface in four weights, and a floating tab dock with TBR, Owned, Wanted, Scan, and Account. All screenshots below were captured from the running application at phone size. The Account tab (feature 4) shows the sign-in or create-account form, or, once signed in, the account with \emph{Sync now} and \emph{Sign out}; while nobody is signed in, TBR, Owned, Wanted and Scan show one ``Sign in to see your library'' card that opens it.
 
 \subsubsection{To Be Read}
 
@@ -485,7 +588,7 @@ Figure~\ref{fig:gui_detail} shows a book's detail screen: the cover on a halo of
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth, height=0.6\textheight, keepaspectratio]{figures/sequence-scan.png}
+    \includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/sequence-scan.png}
     \caption{Sequence diagram: scanning a book (lookup, confirm, save)}
     \label{fig:sequence_scan}
 \end{figure}
@@ -494,12 +597,21 @@ Figure~\ref{fig:sequence_scan} shows the main use case. The lookup saves nothing
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth, height=0.52\textheight, keepaspectratio]{figures/sequence-move.png}
+    \includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/sequence-move.png}
     \caption{Sequence diagram: moving a Wanted book to Owned as a gift}
     \label{fig:sequence_move}
 \end{figure}
 
 Figure~\ref{fig:sequence_move} shows how a domain rule is enforced. The view model gathers the acquisition first; \texttt{Book.moveTo} then refuses to move a book to Owned without a complete \texttt{Purchase} or \texttt{Gift}, and nothing is saved when the rule fails.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/sequence-sync.png}
+    \caption{Sequence diagram: signing in, syncing, and auto sync (ADR-012)}
+    \label{fig:sequence_sync}
+\end{figure}
+
+Figure~\ref{fig:sequence_sync} shows feature 4. After sign-in, \texttt{SyncLibraryUseCase} pulls the account's versions, keeps the newer copy of each book on both sides, and moves the books kept on the phone into the account. \texttt{AccountModel} then watches the account through Realtime: when another phone changes a book, this phone syncs and the shelves reload without a tap.
 
 \textbf{Pseudocode (scan a book)}
 
@@ -530,17 +642,27 @@ Show the book on TBR / Owned or Wanted
 
 \subsection{Data Detailed Design}
 
-\begin{figure}[htbp]
+\begin{landscape}
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth, height=0.62\textheight, keepaspectratio]{figures/data-model.png}
+\includegraphics[width=\linewidth, height=0.92\textheight, keepaspectratio]{figures/data-model.png}
 \caption{Local data model (SQLite)}
 \label{fig:data_model}
 \end{figure}
+\end{landscape}
 
-Figure~\ref{fig:data_model} shows the two tables the app stores on the device. On the web the same data is kept as JSON in browser storage with the same field names.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\textwidth, height=0.5\textheight, keepaspectratio]{figures/data-model-sync.png}
+\caption{The synced copy: each account's \texttt{library\_books} rows in Supabase, kept in step with the device's \texttt{books} rows}
+\label{fig:data_model_sync}
+\end{figure}
+
+Figure~\ref{fig:data_model} shows the two tables the app stores on the device, and Figure~\ref{fig:data_model_sync} the one table in Supabase. On the web the device data is kept as JSON in browser storage with the same field names.
 
 \begin{itemize}
-    \item \textbf{books}: one row per cataloged title and owner: the edition facts (title, author, publisher, date, pages, series, subjects, description), the chosen cover (a URL or an inline photo), the binding, the shelf, the copy count, the reading status, and the acquisition (\texttt{PURCHASED} or \texttt{GIFTED} with the giver's name). Each owner has at most one row per ISBN (\texttt{UNIQUE (owner\_id, isbn)}), which backs the ``duplicate ISBN adds a copy'' rule without letting one owner's books overwrite another's.
+    \item \textbf{books}: one row per cataloged title and owner: the edition facts (title, author, publisher, date, pages, series, subjects, description), the chosen cover (a URL or an inline photo), the binding, the shelf, the copy count, the reading status, and the acquisition (\texttt{PURCHASED} or \texttt{GIFTED} with the giver's name). Each owner has at most one row per ISBN (\texttt{UNIQUE (owner\_id, isbn)}), which backs the ``duplicate ISBN adds a copy'' rule without letting one owner's books overwrite another's. Two sync columns record the last change (\texttt{updated\_at}, in milliseconds) and the deletion (\texttt{deleted\_at}): a deleted book stays as a tombstone, hidden from the shelves, so the deletion reaches other phones.
+    \item \textbf{library\_books} (Supabase): each account's synced copy, with the same book columns and the two sync columns, keyed by account and ISBN. Row level security lets a signed-in account read and write only rows whose \texttt{owner\_id} is its own id, and only signed-in users are granted the table at all.
     \item \textbf{isbn\_cache}: one row per looked-up ISBN with the merged metadata and every cover candidate (as a JSON array), so a book is fetched from the network only once. A version marker clears old entries when the lookup format changes.
 \end{itemize}
 
@@ -573,14 +695,15 @@ NFR-2 & Stylesheets are imports; values come from theme tokens & presentation/st
 NFR-3 & Runs in Expo Go (iOS, Android) and on the web without native builds & Expo modules only (ADR-005, ADR-008) & 27 \\ \hline
 NFR-4 & Accessible: WCAG AA contrast, screen-reader labels, reduced motion & Theme tokens, Tappable, Reveal, Labels & 28 \\ \hline
 NFR-5 & The architecture is documented: tier table, C4 and UML diagrams, ADRs & README, docs/adr, this SDD & 1--3 \\ \hline
-FR-14 & Sign in with a Google account; the library syncs and is backed up to that account (planned, weeks 10--11) & Not built yet; owner isolation in every repository is ready for it & 31, 32 \\ \hline
+FR-14 & Sign in with an email and password (required to see or add books); the library is backed up to the account and kept in sync on every phone, automatically & AccountModel, AccountUseCases, SyncLibraryUseCase, SupabaseAccounts, SupabaseLibraryBackup, SyncStore & 33--35 \\ \hline
+NFR-7 & Each account reads and writes only its own books; only the public key ships in the app & Row level security on library\_books, SupabaseConnection & 33, 35 \\ \hline
 NFR-6 & Bad input and failures are handled: a mistyped ISBN is refused, an unreachable source times out with a clear message, damaged storage still loads & Isbn, Http, BookSourceUnavailableError, BookRowMapper, JsonBookRepository, SqliteBookRepository & 29--31 \\ \hline
 \end{longtable}
 
 %==========================================================================
 \section{Sprint Planning}
 
-MyHomeLib is an individual project, so every development role below is held by the same developer, with a peer review partner reviewing the work at the midterm and final sessions (October 12 and 19, and November 9 and 16). Work is organized as weekly sprints that follow the course milestones. The \emph{Proposed Timeline} below is the plan at project approval; the \emph{Actual Timeline} records what was built. The sprint dates stayed in the same calendar windows, but the content of two sprints changed. In proposed Sprint 5, the Wanted list was to include a bookstore price check by scraping retailer pages; the instructor asked for scraping to be removed (ADR-004), so actual Sprint 5 concentrated on the acquisition rules for moving books to Owned. In proposed Sprint 6, the plan was polish and testing; testing showed that Open Library alone often returned the wrong cover for a specific printing, so actual Sprint 6 added exact-edition lookup with Google Books (ADR-006), and refactored the code into classes with a view model and a design system (ADR-007, ADR-008) to meet the course's object-oriented requirements. Sprint 7 is in progress: alongside the midterm review it hardened the build against bad input and failures (ADR-010), verified in Section~\ref{sec:sprint7}. The rest of the semester follows the Plan for the Second Half (Section~\ref{sec:plan}), which freezes the scope to the four core features.
+MyHomeLib is an individual project, so every development role below is held by the same developer, with a peer review partner reviewing the work at the midterm and final sessions (October 12 and 19, and November 9 and 16). Work is organized as weekly sprints that follow the course milestones. The \emph{Proposed Timeline} below is the plan at project approval; the \emph{Actual Timeline} records what was built. The sprint dates stayed in the same calendar windows; the content of Sprints 5 and 6 changed, as the Proposed Timeline table shows. Sprint 7 is in progress: alongside the midterm review it hardened the build against bad input and failures (ADR-010), verified in Section~\ref{sec:sprint7}. The rest of the semester follows the Plan for the Second Half (Section~\ref{sec:plan}), which freezes the scope to the four core features; Sprint 8 built feature 4 (Section~\ref{sec:sprint8}).
 
 \setlist[enumerate]{topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=2pt, leftmargin=1.5em}
 
@@ -603,296 +726,29 @@ Yousef Habouh & Peer Review Partner & Runs the app from the README, compares the
 
 \subsubsection{Proposed Timeline}
 
-%%% PROPOSED SPRINT 1 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 1 -- Project Proposal and Approval}}
+The plan at project approval, one goal per weekly sprint, and what happened to it. The Actual Timeline below gives the user stories and acceptance criteria of the sprints that were built.
 
-\vspace{0.5em}
+\medskip
 \noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
+\begin{tabular}{|L{1.3cm}|L{2.2cm}|L{4.6cm}|L{6.3cm}|}
 \hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
+\textbf{Sprint} & \textbf{Dates} & \textbf{Planned goal} & \textbf{What happened} \\
 \hline
-Sprint 1 & 08/24 -- 08/30 &
-As the instructor, I want a clear project idea and platform, so that I can approve the scope. &
-\begin{enumerate}
-    \item Verify that the repository exists with a README.
-    \item Verify that the approval paragraph names the platform and the core features.
-\end{enumerate} \\
+1 & 08/24 -- 08/30 & Project proposal and approval & Done as planned. \\
+\hline
+2 & 08/31 -- 09/06 & Tier breakdown & Done as planned. \\
+\hline
+3 & 09/07 -- 09/20 & C4 and UML models & Done as planned (committed on 09/14). \\
+\hline
+4 & 09/21 -- 09/27 & Scanning, shelves, and copies & Done as planned. \\
+\hline
+5 & 09/28 -- 10/04 & Wanted list with a bookstore price check & Changed: scraping was removed at the instructor's request (ADR-004); the sprint built the acquisition rules instead. \\
+\hline
+6 & 10/05 -- 10/11 & Polish, tests, and midterm documentation & Changed: exact-edition lookup with Google Books (ADR-006), the class-based refactor and design system (ADR-007, ADR-008), tests, and this document. \\
+\hline
+7--9 & 10/12 -- 11/22 & Midterm review, device testing, final review and demo & Superseded by the Plan for the Second Half (Section~\ref{sec:plan}), which freezes the scope to the four core features. \\
 \hline
 \end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Create the repository; draft project ideas; write the approval paragraph \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 2 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 2 -- Tier Breakdown}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 2 & 08/31 -- 09/06 &
-As a developer, I want each tier's responsibilities written down, so that every class has an obvious home. &
-\begin{enumerate}
-    \item Verify that the README has a Presentation / Service / Domain / Data table.
-    \item Verify that each row names the system's real responsibilities.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Write the tier table for the README \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 3 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 3 -- C4 and UML Models}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 3 & 09/07 -- 09/20 &
-As a reviewer, I want C4 and class diagrams, so that I can understand the system before reading code. &
-\begin{enumerate}
-    \item Verify that the README has C4 Context, Container, and Component diagrams.
-    \item Verify that a UML class diagram shows the domain rules.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Draw the C4 diagrams and the UML class diagram \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 4 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 4 -- Scanning, Shelves, and Copies}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 4 & 09/21 -- 09/27 &
-As a bibliophile, I want to scan an ISBN and shelve the book as Owned or Wanted, so that I can build my catalog quickly. &
-\begin{enumerate}
-    \item Verify that an ISBN can be scanned or typed.
-    \item Verify that a duplicate ISBN adds a copy.
-    \item Verify that TBR lists Owned books by reading status.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Build the four tiers, the scan flow, the domain rules, and local storage \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 5 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 5 -- Wanted List and Price Check}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 5 & 09/28 -- 10/04 &
-As a bibliophile, I want to see what a Wanted book costs and record how I got each Owned book, so that I can plan purchases and remember gifts. &
-\begin{enumerate}
-    \item Verify that a Wanted book shows a current bookstore price.
-    \item Verify that moving to Owned asks whether the book was purchased or gifted.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Bookstore price lookup for the Wanted list; acquisition rules \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 6 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 6 -- Polish, Tests, and Midterm Documentation}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 6 & 10/05 -- 10/11 &
-As a reviewer, I want a tested, documented midterm build, so that the midterm review can focus on the design. &
-\begin{enumerate}
-    \item Verify that every tier has automated tests.
-    \item Verify that the README and the design document match the code.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Interface polish, automated tests, README, ADRs, and the design document \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 7 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 7 -- Midterm Peer Review}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 7 & 10/12 -- 10/25 &
-As a reviewer, I want to run the app from the README and have my findings addressed, so that the review leads to improvements. &
-\begin{enumerate}
-    \item Verify that the partner runs the app from the README alone.
-    \item Verify that every midterm finding is resolved or answered.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Address the midterm review findings \\
-\hline
-Yousef Habouh & File the structured midterm review \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 8 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 8 -- Device Testing and Hardening}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 8 & 10/26 -- 11/08 &
-As a bibliophile, I want the app to be dependable on my own phone, so that I can catalog my whole library. &
-\begin{enumerate}
-    \item Verify that every flow works on a physical iPhone or Android device in Expo Go.
-    \item Verify that the documentation matches the final code.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Test on physical devices; fix defects; update the documentation \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{1.5em}
-
-%%% PROPOSED SPRINT 9 %%%
-\noindent\begin{minipage}{\linewidth}
-\noindent{\textbf{\large Sprint 9 -- Final Peer Review and Demo}}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{1.2cm}|L{1.8cm}|L{5.2cm}|L{6.3cm}|}
-\hline
-\textbf{Sprint} & \textbf{Dates} & \textbf{User Stories} & \textbf{Acceptance Criteria} \\
-\hline
-Sprint 9 & 11/09 -- 11/22 &
-As the instructor, I want a final review and demo, so that I can evaluate the finished design. &
-\begin{enumerate}
-    \item Verify that the final peer review is filed and addressed.
-    \item Verify that the SDD is updated to its final version.
-\end{enumerate} \\
-\hline
-\end{tabular}
-
-\vspace{0.5em}
-\noindent
-\begin{tabular}{|L{3.4cm}|L{11.6cm}|}
-\hline
-\textbf{Team Member} & \textbf{Task} \\
-\hline
-Grace Hechavarria & Final fixes, demo, and the final SDD revision \\
-\hline
-Yousef Habouh & File the structured final review \\
-\hline
-\end{tabular}
-\end{minipage}
 
 \subsubsection{Actual Timeline}
 
@@ -1135,7 +991,7 @@ The scope for the final is frozen to the four core features (Section~1.1): \text
 \hline
 8--9 (10/12 -- 10/25) & Complete and test features 1--3; address midterm findings & Every rule of features 1--3 has a passing test (\texttt{tests/coreFeatures.test.ts} and the unit tests), every midterm peer-review finding and the check-in action item is fixed or answered, and CI is green. \\
 \hline
-10--11 (10/26 -- 11/08) & Google Account library sync (feature 4) & An ADR records the approach; the owner can sign in with a Google account; their library is backed up to the account and restored in a new session or on another device; each account's books stay separate (the \texttt{BookRepository} contract tests pass for the sync adapter); CI is green. \\
+10--11 (10/26 -- 11/08) & Account library sync (feature 4) & Done: ADR-012 records the approach (email accounts through Supabase instead of Google sign-in); the owner signs in, and the library is backed up to the account and kept in sync on another phone; each account's books stay separate (contract and sync tests); CI is green. \\
 \hline
 12 (11/09 -- 11/15) & Verify all four features on a physical phone & Each core feature is walked through in Expo Go on an iPhone and an Android phone, defects are fixed, and the results are recorded. \\
 \hline
@@ -1153,19 +1009,19 @@ A book source is slow or down (Open Library took about 20 seconds per request du
 \hline
 The camera, haptics, and SQLite have only been exercised in the web build so far & Week 12 is reserved for testing all four features on physical iPhone and Android phones in Expo Go, before the final review; SQLite is already tested against a real database in CI. \\
 \hline
-Google sign-in may not work inside Expo Go (Google's native sign-in library needs a custom development build, and Google restricts which redirect addresses it accepts) & The first days of weeks 10--11 are a spike that proves sign-in on both phones before any sync code is written; if Expo Go cannot do it, an ADR records the alternative chosen. \\
+Google sign-in may not work inside Expo Go (Google's native sign-in library needs a custom development build, and Google restricts which redirect addresses it accepts) & Happened: a custom build is not free on iPhone, so ADR-012 chose email accounts through Supabase, which run in Expo Go on both phones. \\
 \hline
-Account sync could be read as a second data store, against the one-store course constraint & Confirm with the instructor during weeks 8--9; the design keeps SQLite as the only working store and treats the account copy as a backup behind the same repository port. \\
+Account sync could be read as a second data store, against the one-store course constraint & Recorded in ADR-012 as the developer's decision: SQLite stays the only working store, and the account copy is a synced copy behind its own ports. \\
 \hline
-Sync grows beyond its feature (conflict handling, sharing, several devices at once) & Feature 4 is limited to sign-in, backup, and restore of one owner's library; a later change of the same book wins. Anything more waits until after the final. \\
+Sync grows beyond its feature (conflict handling, sharing, several devices at once) & Feature 4 is limited to sign-in and sync of one owner's library; a later change of the same book wins (by the phones' clocks). Password reset and sharing wait until after the final. \\
 \hline
-An Expo or dependency update breaks the app before the demo & Versions are pinned in \texttt{package-lock.json}, CI installs with \texttt{npm ci} on every push, and no SDK upgrade is taken until after the final review. \\
+An Expo or dependency update breaks the app before the demo & Happened in week 11: Expo Go moved to SDK 58 and would no longer open an SDK 57 project, so the project was upgraded the same day (\texttt{expo-doctor} clean, every test passing). Versions stay pinned in \texttt{package-lock.json}, and CI installs with \texttt{npm ci} on every push. \\
 \hline
 The Google Books key is missing or over quota & The key is optional: without it the app uses Open Library only (ADR-006), and the key is restricted to the Books API. \\
 \hline
 Review findings take longer than planned & Weeks 8--9 hold no new features, only findings and tests for features 1--3, ordered by how much they affect the grade and the user. \\
 \hline
-One developer, limited time & Work is split into small issues with weekly commits, and CI and the 146 automated tests catch regressions immediately. \\
+One developer, limited time & Work is split into small issues with weekly commits, and CI and the 195 automated tests catch regressions immediately. \\
 \hline
 \end{tabular}
 
@@ -1195,21 +1051,24 @@ The domain rules were modeled as behavior of the domain classes rather than chec
 
 \subsubsection{Use Case Diagram}
 
-\begin{figure}[htbp]
+\begin{landscape}
+\begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth, height=0.48\textheight, keepaspectratio]{figures/use-case.png}
+\includegraphics[width=\linewidth, height=0.85\textheight, keepaspectratio]{figures/use-case.png}
 \caption{Use Case Diagram}
 \label{fig:use_case}
 \end{figure}
+\end{landscape}
 
-Figure~\ref{fig:use_case} shows what the bibliophile can do. Scanning \emph{includes} confirming the edition and choosing a shelf; choosing Owned \emph{includes} recording a purchase or gift. A duplicate ISBN \emph{extends} scanning into adding a copy. The two book sources are external actors of the scan use case.
+Figure~\ref{fig:use_case} shows what the bibliophile can do. Scanning \emph{includes} confirming the edition and choosing a shelf; choosing Owned \emph{includes} recording a purchase or gift. A duplicate ISBN \emph{extends} scanning into adding a copy. The two book sources are external actors of the scan use case. Signing in \emph{includes} syncing the library, with Supabase as its external actor.
 
 \subsubsection{Activity Diagram}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.8\textheight, keepaspectratio]{figures/activity-scan.png}
-\caption{Activity Diagram: scanning a book}
+\includegraphics[width=0.49\textwidth, height=0.88\textheight, keepaspectratio]{figures/activity-scan.png}\hfill
+\includegraphics[width=0.49\textwidth, height=0.88\textheight, keepaspectratio]{figures/activity-shelve.png}
+\caption{Activity Diagram: scanning a book. Left: finding the edition; right: shelving a new book, continuing at A}
 \label{fig:activity}
 \end{figure}
 
@@ -1219,29 +1078,31 @@ Figure~\ref{fig:activity} shows every decision in the scan flow, including the t
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.58\textheight, keepaspectratio]{figures/class-domain.png}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-domain.png}
 \caption{Class Diagram: Domain model}
 \label{fig:class_domain}
 \end{figure}
 
+
+
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.55\textheight, keepaspectratio]{figures/class-service-data.png}
-\caption{Class Diagram: Service use cases, ports, and Data adapters}
-\label{fig:class_service}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-presentation.png}
+\caption{Class Diagram: Presentation view model and catalog strategies}
+\label{fig:class_presentation}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth, height=0.4\textheight, keepaspectratio]{figures/class-presentation.png}
-\caption{Class Diagram: Presentation view model and catalog strategies}
-\label{fig:class_presentation}
+\includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-devices.png}
+\caption{Class Diagram: the device families (Abstract Factory, ADR-011)}
+\label{fig:class_devices}
 \end{figure}
 
 
 \FloatBarrier
 
-Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. Figures~\ref{fig:class_service} and~\ref{fig:class_presentation} are supplementary: they show how the other tiers are built, for readers tracing a call through the code. The object-oriented techniques used, and where:
+Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes that carry the system's rules (\texttt{PersonalLibrary}, \texttt{Book}, \texttt{AcquisitionRecord}, \texttt{Purchase}, \texttt{Gift}) with their real attributes and relationships, plus two enumerations. The other tiers' classes are drawn where their interfaces are described, so they are not repeated here: Service in Figure~\ref{fig:iface_service}, Data in Figures~\ref{fig:iface_data} and~\ref{fig:iface_sources}, and accounts and sync in Figure~\ref{fig:class_accounts}. Figure~\ref{fig:class_presentation} adds the Presentation view model and the catalog strategies, and Figure~\ref{fig:class_devices} the device families. The object-oriented techniques used, and where:
 
 \begin{longtable}{|L{3.6cm}|L{11cm}|}
 \hline
@@ -1251,21 +1112,23 @@ Figure~\ref{fig:class_domain} is the core class diagram: the five domain classes
 Encapsulation & \texttt{Book} keeps its state private; it changes only through rule-checking methods. \\
 Abstract class + inheritance & \texttt{LibraryUseCase} $\rightarrow$ \texttt{LibraryLookupUseCase} $\rightarrow$ use cases; \texttt{AcquisitionRecord}; \texttt{CatalogGrouping}; \texttt{Observable}. \\
 Polymorphism & \texttt{Purchase} and \texttt{Gift} answer \texttt{isComplete()} and \texttt{describe()} their own way. \\
-Interfaces & \texttt{BookRepository}, \texttt{IsbnLookup}, \texttt{IsbnCache}, \texttt{CoverCamera}. \\
+Interfaces & \texttt{BookRepository}, \texttt{IsbnLookup}, \texttt{IsbnCache}, \texttt{SyncStore}, \texttt{LibraryBackup}, \texttt{Accounts}, \texttt{CoverCamera}, \texttt{Feedback}, \texttt{DeviceFamily}. \\
 Composition & \texttt{PersonalLibrary} composes \texttt{Book}s; \texttt{JsonBookRepository} composes \texttt{MemoryBookRepository}. \\
 Template Method & \texttt{LibraryUseCase.updateBook} (load $\rightarrow$ change $\rightarrow$ save). \\
 Strategy & \texttt{TitleLetterGrouping}, \texttt{AuthorGrouping}, \texttt{SeriesGrouping}. \\
 Decorator & \texttt{CachingIsbnLookup} and \texttt{MergedIsbnLookup} wrap other lookups. \\
-Factory & \texttt{UseCases} builds every use case; \texttt{AcquisitionRecord.restore}. \\
+Abstract Factory & \texttt{DeviceFamily}: \texttt{PhoneDevices} or \texttt{BrowserDevices} creates a matched camera and feedback (the other four creational patterns are checked in \texttt{docs/pattern-map.md}). \\
+Simple Factory & \texttt{UseCases} and \texttt{AccountUseCases} build every use case; \texttt{AcquisitionRecord.restore}; \texttt{SqliteBookRepository.open}; \texttt{SupabaseConnection.open}. \\
+Null Object & \texttt{UnconfiguredAccounts} and \texttt{UnconfiguredLibraryBackup} stand in when no Supabase project is configured, so no caller checks for one. \\
 Data Mapper & \texttt{BookRowMapper} is the only row $\leftrightarrow$ \texttt{Book} translation. \\
-Observer / MVVM & \texttt{LibraryAppModel} extends \texttt{Observable}; React subscribes with \texttt{useObservable}. \\
-Dependency injection & \texttt{CompositionRoot} passes adapters to the use cases; tests pass fakes. \\
+Observer / MVVM & \texttt{LibraryAppModel} and \texttt{AccountModel} extend \texttt{Observable}; React subscribes with \texttt{useObservable}; Realtime change notices start a sync. \\
+Dependency injection & \texttt{CompositionRoot} passes adapters to the use cases; \texttt{App.tsx} passes a device family to the view model; tests pass fakes. \\
 \hline
 \end{longtable}
 
 \subsubsection{Sequence Diagram}
 
-The sequence diagrams for scanning a book and for moving a Wanted book to Owned are shown in Figures~\ref{fig:sequence_scan} and~\ref{fig:sequence_move} (Section 4).
+The sequence diagrams for scanning a book, for moving a Wanted book to Owned, and for signing in and syncing are shown in Figures~\ref{fig:sequence_scan}, \ref{fig:sequence_move} and~\ref{fig:sequence_sync} (Section 4).
 
 \FloatBarrier
 \subsection{Rationale Management}
@@ -1289,6 +1152,8 @@ Rationale management records why each design decision was made. In this project 
 009 & Ports and adapters between Service and Data & Accepted \\
 \hline
 010 & Validate input and contain failures at the tier edges & Accepted \\
+011 & Abstract Factory for the device services & Accepted \\
+012 & Account sign-in and library sync with Supabase (email sign-up) & Accepted (developer's decision) \\
 \hline
 \end{tabular}
 
@@ -1304,8 +1169,9 @@ The first issue was \textbf{portability}: the review partner had to run the app 
     \item \textbf{Open Library only}: simpler, but often wrong for a specific printing; Google Books was added as an optional second source (ADR-006).
     \item \textbf{Keeping screen logic in React hooks}: faster to write, but untestable without rendering and not class-based; replaced by an MVVM view model (ADR-007).
     \item \textbf{A UI component library}: would add dependencies and a generic look; a small token-based design system was built instead (ADR-008).
+    \item \textbf{Google sign-in for feature 4}: rejected for now; it needs a custom native build, which is not free on iPhone, while email sign-in through Supabase runs in Expo Go on both phones (ADR-012). \textbf{Writing our own sign-in server} was rejected too: password storage, reset emails and hosting are more work and more risk.
     \item \textbf{Plain JavaScript instead of TypeScript}: JavaScript is required by React Native, but it has no interfaces, abstract classes, or access modifiers, and it reports type mistakes only at run time. TypeScript was chosen because those features carry the course's object-oriented design straight into the code (the UML diagrams match the classes), the compiler refuses an adapter that does not implement its port, and all four tiers and the tests share one language.
-    \item \textbf{Microservices or a backend server}: rejected; the library is private to one user and must work offline on a phone, so a server would add cost and failure points without benefit. The planned Google Account sync (feature 4) backs the library up to the owner's own account through one more \texttt{BookRepository} adapter, without a server of the project's own.
+    \item \textbf{Microservices or a backend server}: rejected; the library is private to one user and must work offline on a phone, so a server would add cost and failure points without benefit. Account sync (feature 4) uses Supabase, a hosted service, through its official client, so the project still runs no server of its own (ADR-012).
 \end{itemize}
 
 \subsubsection{Decisions Made}
@@ -1323,7 +1189,7 @@ The design is centered on the scan workflow and the collection rules. The rules 
 
 \subsubsection{Design Debate and Final Resolution}
 
-The main debate was between keeping the external integrations to the minimum (Open Library only) and matching the user's exact copy. Feedback from the instructor favored limiting integrations and removing scraping, while testing showed that a single free source produced wrong covers for many editions. The resolution was to add Google Books only through its official API, make its key optional so the app still runs without it, merge both sources behind the existing \texttt{IsbnLookup} port, and always let the owner choose or photograph the cover. This kept the architecture unchanged, respected the no-scraping rule, and met the user's need. A second debate concerned how much structure to add for the course's object-oriented requirements; the resolution was to introduce each pattern only where it removed real duplication or made a rule testable, and to document each one in the table above.
+The main debate was between keeping the external integrations to the minimum (Open Library only) and matching the user's exact copy. Feedback from the instructor favored limiting integrations and removing scraping, while testing showed that a single free source produced wrong covers for many editions. The resolution was to add Google Books only through its official API, make its key optional so the app still runs without it, merge both sources behind the existing \texttt{IsbnLookup} port, and always let the owner choose or photograph the cover. This kept the architecture unchanged, respected the no-scraping rule, and met the user's need. A second debate concerned how much structure to add for the course's object-oriented requirements; the resolution was to introduce each pattern only where it removed real duplication or made a rule testable, and to document each one in the table above. A third debate concerned feature 4: the approved scope said ``Google Account'', but Google sign-in could not run free on both phones in Expo Go. The resolution kept the feature's goal (one library on every phone) and changed the sign-in method, recorded in ADR-012 with the scope wording updated everywhere.
 
 %==========================================================================
 \section{Verification}
@@ -1331,7 +1197,7 @@ The main debate was between keeping the external integrations to the minimum (Op
 
 Verification in software is defined by the IEEE 1012 standard as ``the process of evaluating software to determine whether the products of a given development phase satisfy the conditions imposed at the start of that phase'' (IEEE, 2024).
 
-MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 146 tests in 10 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
+MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 195 tests in 15 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
 
 \begin{table}[H]
 \centering
@@ -1345,15 +1211,20 @@ bookSources.test.ts & Open Library and Google Books parsing, merging, failures, 
 appModel.test.ts & Every user flow through the view model, no UI & 17 \\
 controller.test.ts & Controller, library view, JSON round trip & 6 \\
 catalog.test.ts & A--Z, author, and series grouping & 3 \\
-persistence.test.ts & BookRowMapper (legacy and damaged rows), the repository contract for memory, JSON and SQLite, owner isolation, schema upgrades & 29 \\
+persistence.test.ts & BookRowMapper (legacy and damaged rows), the repository, cache and sync contracts for memory, JSON and SQLite, owner isolation, tombstones, schema upgrades & 42 \\
 resilience.test.ts & ISBN check digits and ISBN-10 to ISBN-13 keys, timeouts, error statuses, malformed JSON, the banner shown for each & 17 \\
 coreFeatures.test.ts & Each of the four core features end to end, with the real lookup pipeline on canned JSON; a library-only store runs every use case & 12 \\
+devices.test.ts & The device family: the browser family as a whole, feedback through the family, camera availability & 5 \\
+accounts.test.ts & Credentials and the sign-up, sign-in and sign-out use cases & 4 \\
+supabaseAdapters.test.ts & Supabase sign-in errors in plain words, the Null Objects, backup round trip, paging, Realtime watch, offline & 11 \\
+sync.test.ts & Two phones: merge, latest change wins, deletes stay deleted, offline, first sign-in, isolation & 7 \\
+accountModel.test.ts & The Account tab with the library: sign-in lock, sign up, wrong password, sign out, auto sync, offline, no service & 9 \\
 architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \midrule
-\textbf{Total} & \textbf{Test Suites: 10 passed; Tests: 146 passed} & \textbf{146} \\
+\textbf{Total} & \textbf{Test Suites: 15 passed; Tests: 195 passed} & \textbf{195} \\
 \bottomrule
 \end{tabular}
-\caption{Automated test suite results (\texttt{npm test}, October 18, 2026)}
+\caption{Automated test suite results (\texttt{npm test}, November 7, 2026)}
 \label{tab:tests}
 \end{table}
 
@@ -1398,8 +1269,8 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \textbf{Process} & \textbf{Verification} & \textbf{Figure} \\
 \midrule
 \endhead
-\textbf{(4)} We open the app on the To be read tab with a small library. Owned unread books are listed; the switch shows the unread and read counts. & Verify that TBR lists Owned books split Unread / Read & Fig.~\ref{fig:v_tbr} \\
-\textbf{(5)} We switch to Read. Only finished Owned books appear, marked with a leaf. With an empty library the shelf explains itself and offers Scan. & Verify that reading status is independent of the shelf & Fig.~\ref{fig:v_tbr} \\
+\textbf{(4)} We open the app on the To be read tab with a small library. Owned unread books are listed; the switch shows the unread and read counts. & Verify that TBR lists Owned books split Unread / Read & Fig.~\ref{fig:gui_tbr} \\
+\textbf{(5)} We switch to Read. Only finished Owned books appear, marked with a leaf. With an empty library the shelf explains itself and offers Scan. & Verify that reading status is independent of the shelf & Fig.~\ref{fig:gui_tbr} \\
 \textbf{(6)} We open Owned and switch between A--Z, Author, and Series. Each grouping lists the same books under index headings. & Verify the three catalog groupings & Fig.~\ref{fig:gui_owned} \\
 \textbf{(7)} In Series, the Dune series appears as a fan of covers with a count badge of 2; tapping it lists both books. & Verify series grouping and expansion & Fig.~\ref{fig:gui_owned} \\
 \textbf{(8)} We scan the ISBN of Matilda, which is already cataloged. The popup says it is already in the library; confirming adds a copy, and the banner reports ``Copies: 2'' without a second entry. & Verify that a duplicate ISBN increments the copy count & Fig.~\ref{fig:v_duplicate} \\
@@ -1407,12 +1278,6 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \bottomrule
 \end{longtable}
 
-\begin{figure}[H]
-    \centering
-    \screen[0.18\textwidth]{tbr-unread}\hfill\screen[0.18\textwidth]{tbr-read}\hfill\screen[0.18\textwidth]{empty-tbr}
-    \caption{TBR unread, TBR read, and the empty state}
-    \label{fig:v_tbr}
-\end{figure}
 
 
 \begin{figure}[H]
@@ -1517,7 +1382,21 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \textbf{(29)} We type ISBNs with a wrong check digit, the wrong length, a non-book barcode, and nothing at all. Each is refused with ``\ldots{} is not a valid ISBN. Check the number and try again.'' and no book source is asked; hyphens, spaces, an ``ISBN'' prefix and an ISBN-10 ending in X are accepted. & Verify ISBN validation before any network call & Table~\ref{tab:tests} \\
 \textbf{(30)} Resilience tests make a source time out, answer 404, 429 and 500, send broken or non-object JSON, and go offline. Each becomes one \texttt{BookSourceUnavailableError}; with Google rate-limited, Open Library still answers; with every source down the banner reads ``Couldn't reach the book sources. Check your connection and try again.'' in red, and nothing is added. The Google key never appears in an error. & Verify graceful failure of the book sources & Table~\ref{tab:tests} \\
 \textbf{(31)} Persistence tests round-trip every field through JSON and a real SQLite database, store a missing acquisition as \texttt{NULL}, load a first-release database (TBR shelf, \texttt{collection} column, ISBN unique across owners), skip damaged rows, back up an unreadable save, keep two owners' copies of one ISBN apart, and store SQL in a title literally (all values are bound parameters). The same contract runs against every adapter, and a future sync adapter must pass it too. & Verify storage integrity, migration, and owner isolation & Table~\ref{tab:tests} \\
-\textbf{(32)} The core-feature tests drive each feature through the controller, use cases, domain and a repository: an ISBN-10 and its ISBN-13 find the same merged edition; the picked cover or photo is saved; Owned needs a purchase or a named gift; a second scan of the same book, written either way, adds a copy; TBR, Wanted and the three catalog groupings list the right books; read, move, cover and delete work from a book's page; and two Google-style accounts sharing one store never see each other's books. & Verify the four core features end to end & Table~\ref{tab:tests} \\
+\textbf{(32)} The core-feature tests drive each feature through the controller, use cases, domain and a repository: an ISBN-10 and its ISBN-13 find the same merged edition; the picked cover or photo is saved; Owned needs a purchase or a named gift; a second scan of the same book, written either way, adds a copy; TBR, Wanted and the three catalog groupings list the right books; read, move, cover and delete work from a book's page; and two accounts sharing one store never see each other's books. & Verify the four core features end to end & Table~\ref{tab:tests} \\
+\bottomrule
+\end{longtable}
+
+\subsection{Sprint 8 -- Accounts and Library Sync}
+\label{sec:sprint8}
+
+\begin{longtable}{L{0.4\linewidth} L{0.36\linewidth} L{0.14\linewidth}}
+\toprule
+\textbf{Process} & \textbf{Verification} & \textbf{Figure} \\
+\midrule
+\endhead
+\textbf{(33)} Sync tests run two phones (two stores with their own clocks) against one backup: books added on each phone end up on both; the later change to a book wins; a book deleted on one phone is deleted on the other and does not come back; offline, the phone keeps working and the next sync catches up; the first sign-in moves the phone's books into the account and adds the copies of a book in both; one account never receives another's books. & Verify sync rules and owner isolation & Table~\ref{tab:tests} \\
+\textbf{(34)} View-model tests drive the Account tab with the library: signed out, every shelf is empty and a scan is refused; a wrong password or a malformed email is explained and nobody is signed in; signing out or an expired session empties the shelves; a book added on one phone appears on the other with no tap (auto sync); with no account service, the tab says so. & Verify the Account tab and the sign-in lock & Table~\ref{tab:tests} \\
+\textbf{(35)} We run the web build against the shared Supabase project: the Account tab shows the sign-in form with no setup, an unreachable server gives ``Couldn't reach the account service'', and a signed-in browser reports ``Your library is up to date''. Known issue (outstanding): a delete made in the browser reached the other device only after \emph{Sync now}. On two phones in Expo Go, signed in to one account, creating an account, adding, deleting and syncing books all worked (developer walkthrough, November 7, 2026). & Verify the app against the real service & Web build \\
 \bottomrule
 \end{longtable}
 
@@ -1535,6 +1414,7 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \item Martin, R. C. (2017). \textit{Clean architecture: A craftsman's guide to software structure and design}. Prentice Hall.
 \item Nygard, M. (2011). \textit{Documenting architecture decisions}. Retrieved from \url{https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions}
 \item Sommerville, I. (2021). \textit{Software engineering} (10th ed.). Pearson.
+\item Supabase. (n.d.). \textit{Supabase documentation}. Retrieved from \url{https://supabase.com/docs}
 \item World Wide Web Consortium. (2023). \textit{Web Content Accessibility Guidelines (WCAG) 2.2}. Retrieved from \url{https://www.w3.org/TR/WCAG22/}
 \end{itemize}
 

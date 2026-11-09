@@ -1,13 +1,10 @@
 classDiagram
+    direction LR
     class Observable~State~ {
         <<abstract>>
         +getState() State
         +subscribe(listener)
         #setState(patch)
-    }
-    class CoverCamera {
-        <<interface>>
-        +takePhoto() String
     }
     class CatalogGrouping {
         <<abstract>>
@@ -16,14 +13,19 @@ classDiagram
         +sections(books) CatalogSection[]
         #sectionOf(book)* String
     }
+    class DeviceFamily {
+        <<interface>>
+    }
     LibraryAppModel --|> Observable~State~
-    LibraryAppModel --> CoverCamera : photographs covers
-    ExpoCoverCamera ..|> CoverCamera
-    LibraryAppModel --> ScanDraft : holds while scanning
+    AccountModel --|> Observable~State~
+    LibraryAppModel o-- AccountModel : follows
+    AccountModel --> AccountUseCases : calls
+    LibraryAppModel --> DeviceFamily
+    LibraryAppModel --> ScanDraft
     LibraryAppModel *-- LibraryController : uses
     LibraryController --> LibraryView : builds
     LibraryController --> LibraryUseCase : calls
-    Catalog --> CatalogGrouping : picks one per mode
+    Catalog --> CatalogGrouping : picks one
     TitleLetterGrouping --|> CatalogGrouping
     AuthorGrouping --|> CatalogGrouping
     SeriesGrouping --|> CatalogGrouping

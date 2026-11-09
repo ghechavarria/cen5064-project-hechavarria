@@ -1,22 +1,29 @@
 /**
  * Component: IsbnCamera — reads ISBN barcodes with the phone camera and hands
- * each new code to onIsbn. It never saves and never fetches. In a web browser
- * it explains that the camera needs the phone app.
+ * each new code to onIsbn. It never saves and never fetches. Where the device
+ * family has no camera (the browser build) it explains that scanning needs the phone.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef } from "react";
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Labels } from "../model/labels";
 import { styles } from "../styles/isbnCamera.styles";
 import { icon, theme } from "../styles/theme";
 import { Button } from "./Button";
 
-export function IsbnCamera(props: { listening: boolean; onIsbn: (isbn: string) => void }) {
-  return Platform.OS === "web" ? <MobileAppOnly /> : <PhoneCamera {...props} />;
+export function IsbnCamera({
+  available,
+  ...props
+}: {
+  available: boolean;
+  listening: boolean;
+  onIsbn: (isbn: string) => void;
+}) {
+  return available ? <PhoneCamera {...props} /> : <MobileAppOnly />;
 }
 
-// Web: no camera, so point to the phone app and to the typed ISBN below.
+// No camera: point to the phone app and to the typed ISBN below.
 function MobileAppOnly() {
   return (
     <View style={styles.frame}>

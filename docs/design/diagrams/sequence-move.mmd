@@ -1,29 +1,30 @@
+%%{init: {"sequence": {"mirrorActors": false, "messageMargin": 16, "actorMargin": 8, "boxMargin": 6, "noteMargin": 6, "width": 80}}}%%
 sequenceDiagram
     actor U as Bibliophile
     participant VM as LibraryAppModel
     participant C as LibraryController
-    participant S as MoveBookToShelfUseCase
-    participant B as Book (Domain)
+    participant S as MoveBookToShelf<br/>UseCase
+    participant B as Book
     participant R as BookRepository
-    U->>VM: "To Owned" on a Wanted book
-    VM-->>U: ask "Purchased or gifted?"
-    U->>VM: chooseGifted(), then the giver's name
-    VM->>C: move(isbn, OWNED, readingStatus, new Gift(giver))
-    C->>S: execute(ownerId, isbn, OWNED, gift)
+    U->>VM: "To Owned"
+    VM-->>U: "Purchased<br/>or gifted?"
+    U->>VM: chooseGifted(),<br/>giver's name
+    VM->>C: move(isbn, OWNED,<br/>status, Gift)
+    C->>S: execute(ownerId,<br/>isbn, OWNED, gift)
     S->>R: loadLibrary(ownerId)
     R-->>S: PersonalLibrary
     S->>B: acquire(gift)
     S->>B: moveTo(OWNED)
-    Note right of B: rule: an Owned book needs a complete<br/>Purchase or Gift (a Gift needs a giver)
+    Note over B: Owned needs<br/>a complete<br/>Purchase or Gift
     alt acquisition missing or incomplete
-        B-->>S: NotAcquiredError / GiftSourceRequiredError
-        S-->>VM: error (nothing saved)
-        VM-->>U: explain what is missing
+        B-->>S: NotAcquired /<br/>GiftSourceRequired<br/>error
+        S-->>VM: error, nothing saved
+        VM-->>U: explains what's missing
     else rule satisfied
         S->>R: save(ownerId, book)
         R-->>S: Book
         S-->>C: Book
-        C->>C: setReading(isbn, readingStatus)
+        C->>C: setReading(isbn, status)
         C-->>VM: Book
         VM-->>U: "Moved to Owned"
     end

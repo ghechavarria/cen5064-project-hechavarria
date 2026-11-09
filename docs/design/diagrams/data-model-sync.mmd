@@ -1,0 +1,16 @@
+erDiagram
+    direction TB
+    books {
+        TEXT owner_id "account id once signed in"
+        TEXT isbn
+        INTEGER updated_at
+        INTEGER deleted_at
+    }
+    library_books {
+        UUID owner_id PK, FK "auth.users"
+        TEXT isbn PK
+        TEXT book_columns "same as books"
+        BIGINT updated_at "ms; newest wins"
+        BIGINT deleted_at "tombstone"
+    }
+    books |o..o| library_books : "synced (SyncLibraryUseCase)"

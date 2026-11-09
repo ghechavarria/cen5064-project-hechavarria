@@ -1,15 +1,15 @@
 /// <reference types="node" />
 /**
  * Tests: persistence — BookRowMapper (flatten, rebuild, legacy and damaged
- * rows), JSON storage (corrupted save, old cache), the BookRepository contract
- * every adapter must pass (including owner isolation, the base for Google
- * Account sync), and SqliteBookRepository against a real SQLite database
+ * rows), JSON storage (corrupted save, old cache), the BookRepository, IsbnCache
+ * and SyncStore contracts every device store must pass (owner isolation, soft
+ * deletes and timestamps for account sync), and SqliteBookRepository against a real SQLite database
  * (Node's built-in node:sqlite behind the expo-sqlite calls it makes).
  */
 import { JsonBookRepository, MemoryBookRepository } from "../data/bookRepository";
 import { BookRow, BookRowMapper, StoredRow } from "../data/bookRowMapper";
 import { Acquisition, Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../domain";
-import { BookRepository, IsbnCache } from "../service/ports";
+import { BookRepository, IsbnCache, SyncStore } from "../service/ports";
 import { FOX } from "./fixtures";
 
 const FULL_BOOK = () =>
@@ -78,7 +78,14 @@ describe("BookRowMapper", () => {
       pageCount: 0,
       subjects: "",
       format: BookFormat.UNKNOWN,
+      updatedAt: 0, // saved before sync: the oldest version
+      deletedAt: null,
     });
+  });
+
+  test("timestamps that aren't usable numbers read as never changed and not deleted", () => {
+    const row = BookRowMapper.withDefaults({ ownerId: "o", isbn: "1", updatedAt: -5, deletedAt: "soon" as unknown as number });
+    expect(row).toMatchObject({ updatedAt: 0, deletedAt: null });
   });
 
   test("a series already stored wins over the legacy collection", () => {
@@ -227,21 +234,20 @@ const freshDatabase = () => {
   mockDatabase = new NodeSqliteDatabase(new nodeSqlite!.DatabaseSync(":memory:"));
   return mockDatabase;
 };
-const openSqlite = async () => (await import("../data/sqliteRepository")).SqliteBookRepository.open();
+const openSqlite = async (clock?: () => number) =>
+  (await import("../data/sqliteRepository")).SqliteBookRepository.open(clock);
 
 // --- Port contracts ---
-// Every device store implements two ports and must pass both contracts.
-// BookRepository is also the contract for the planned Google Account sync
-// (core feature 4): its adapter joins that list only, because caching ISBN
-// lookups is no part of an account backup (the two ports are kept separate).
+// Every device store implements three ports and must pass all three contracts:
+// BookRepository (the library), IsbnCache (lookups) and SyncStore (what account
+// sync reads and writes, ADR-012). The ports stay separate on purpose.
 
-type LocalStore = BookRepository & IsbnCache;
-const localStores: [name: string, open: () => Promise<LocalStore>][] = [
-  ["memory", async () => new MemoryBookRepository()],
-  ["JSON (browser storage)", async () => new JsonBookRepository(new FakeStorage())],
-  ...(nodeSqlite
-    ? [["SQLite", async () => (freshDatabase(), openSqlite())] as [string, () => Promise<LocalStore>]]
-    : []),
+type LocalStore = BookRepository & IsbnCache & SyncStore;
+type Opener = (clock?: () => number) => Promise<LocalStore>;
+const localStores: [name: string, open: Opener][] = [
+  ["memory", async (clock) => new MemoryBookRepository(clock)],
+  ["JSON (browser storage)", async (clock) => new JsonBookRepository(new FakeStorage(), clock)],
+  ...(nodeSqlite ? [["SQLite", async (clock?: () => number) => (freshDatabase(), openSqlite(clock))] as [string, Opener]] : []),
 ];
 
 describe.each(localStores)("BookRepository contract: %s", (_name, open: () => Promise<BookRepository>) => {
@@ -284,6 +290,68 @@ describe.each(localStores)("IsbnCache contract: %s", (_name, open: () => Promise
     expect(await cache.cachedIsbn(FOX.isbn)).toBeNull();
     await cache.cacheIsbn(FOX);
     expect(await cache.cachedIsbn(FOX.isbn)).toEqual(FOX);
+  });
+});
+
+describe.each(localStores)("SyncStore contract: %s", (_name, open) => {
+  // A clock the test moves by hand, so every timestamp is known.
+  const tick = () => {
+    let now = 1000;
+    return { clock: () => now, advance: () => (now += 1000) };
+  };
+
+  test("a save is stamped with the time it happened and is not deleted", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    await store.save("local", FULL_BOOK());
+    const [version] = await store.versions("local");
+    expect(version).toMatchObject({ updatedAt: 1000, deletedAt: null });
+    expect(fields(version.book)).toEqual(fields(FULL_BOOK()));
+  });
+
+  test("a delete hides the book but keeps a tombstone; saving it again revives it", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    await store.save("local", FULL_BOOK());
+    time.advance();
+    await store.delete("local", FOX.isbn);
+    expect((await store.loadLibrary("local")).books).toHaveLength(0);
+    expect(await store.versions("local")).toMatchObject([{ updatedAt: 2000, deletedAt: 2000 }]);
+
+    time.advance();
+    await store.delete("local", FOX.isbn); // deleting twice keeps the first time
+    expect(await store.versions("local")).toMatchObject([{ deletedAt: 2000 }]);
+
+    await store.save("local", FULL_BOOK());
+    expect(await store.versions("local")).toMatchObject([{ updatedAt: 3000, deletedAt: null }]);
+    expect((await store.loadLibrary("local")).books).toHaveLength(1);
+  });
+
+  test("applied versions keep their own timestamps, tombstones included, for that owner only", async () => {
+    const store = await open(tick().clock);
+    const gone = new Book({ ...FOX, isbn: "9780141346809", shelf: Shelf.WANTED });
+    await store.applyVersions("account-1", [
+      { book: FULL_BOOK(), updatedAt: 42, deletedAt: null },
+      { book: gone, updatedAt: 50, deletedAt: 50 },
+    ]);
+    expect((await store.loadLibrary("account-1")).books.map((book) => book.isbn)).toEqual([FOX.isbn]);
+    const versions = await store.versions("account-1");
+    expect(versions.map((version) => [version.book.isbn, version.updatedAt, version.deletedAt])).toEqual([
+      [FOX.isbn, 42, null],
+      [gone.isbn, 50, 50],
+    ]);
+    expect(await store.versions("local")).toEqual([]);
+  });
+
+  test("an older version never replaces a newer one (a change made while sync was running)", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    await store.save("local", new Book({ ...FOX, shelf: Shelf.WANTED })); // changed at 1000
+    await store.applyVersions("local", [
+      { book: FULL_BOOK(), updatedAt: 500, deletedAt: null },
+      { book: FULL_BOOK(), updatedAt: 1000, deletedAt: 1000 },
+    ]);
+    expect(await store.versions("local")).toMatchObject([{ updatedAt: 1000, deletedAt: null, book: { shelf: Shelf.WANTED } }]);
   });
 });
 

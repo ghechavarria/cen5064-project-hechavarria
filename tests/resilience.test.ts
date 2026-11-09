@@ -15,7 +15,7 @@ import { LibraryController } from "../presentation/model/libraryController";
 import { LookupIsbnUseCase, UseCases } from "../service";
 import { BookSourceUnavailableError, IsbnLookup } from "../service/ports";
 import { MemoryBookRepository } from "../data/bookRepository";
-import { FOX, FakeCoverCamera, foxLookup } from "./fixtures";
+import { FOX, FakeDevices, foxLookup } from "./fixtures";
 
 // --- ISBN validation ---
 
@@ -188,7 +188,7 @@ test("an ISBN-10 typed by the owner matches Google's volume listing that ISBN-10
 async function modelWith(lookup: IsbnLookup): Promise<LibraryAppModel> {
   const model = new LibraryAppModel(
     async () => new LibraryController(new UseCases(new MemoryBookRepository(), lookup), "local"),
-    new FakeCoverCamera(),
+    new FakeDevices(),
   );
   await model.start();
   return model;

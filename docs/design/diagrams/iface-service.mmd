@@ -11,16 +11,11 @@ classDiagram
         #isbnLookup: IsbnLookup
         #tryFillFacts(book)
     }
-    class LookupIsbnUseCase {
-        +execute(isbn) BookMetadata
-    }
-    LibraryLookupUseCase --|> LibraryUseCase
     LoadLibraryUseCase --|> LibraryUseCase
     MoveBookToShelfUseCase --|> LibraryUseCase
     SetReadingStatusUseCase --|> LibraryUseCase
-    ChangeCoverUseCase --|> LibraryUseCase
     DeleteBookUseCase --|> LibraryUseCase
+    ChangeCoverUseCase --|> LibraryUseCase
+    LibraryLookupUseCase --|> LibraryUseCase
     ScanBookUseCase --|> LibraryLookupUseCase
     FillMissingFactsUseCase --|> LibraryLookupUseCase
-    UseCases *-- LibraryUseCase : builds each
-    UseCases *-- LookupIsbnUseCase

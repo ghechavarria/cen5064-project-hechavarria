@@ -7,19 +7,23 @@
  * no logic of their own.
  *
  * It extends Observable (inheritance) and is composed with a
- * LibraryController (the bridge to the Service use cases).
+ * LibraryController (the bridge to the Service use cases) and, when accounts
+ * are wired in, an AccountModel: the shelves show the signed-in account's
+ * books, and every change to the library asks for a sync (ADR-012).
  */
 import { AcquisitionRecord, Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../../domain";
 import { DomainError } from "../../domain/exceptions";
 import { BookSourceUnavailableError } from "../../service";
+import { AccountModel } from "./accountModel";
 import { CatalogMode } from "./catalog";
 import { CameraUnavailableError, CoverCamera } from "./coverCamera";
+import { DeviceFamily, Feedback } from "./devices";
 import { Labels } from "./labels";
 import { LibraryController, LibraryView } from "./libraryController";
 import { Observable } from "./observable";
 import { ScanDraft } from "./scanDraft";
 
-export type MenuTab = "tbr" | "owned" | "wanted" | "scan";
+export type MenuTab = "tbr" | "owned" | "wanted" | "scan" | "account";
 type Screen = "main" | "detail";
 export type FlashTone = "info" | "danger";
 
@@ -64,6 +68,7 @@ const TAB_HEADINGS: Record<MenuTab, string> = {
   owned: "Owned",
   wanted: "Wanted",
   scan: "Add a book",
+  account: "Account",
 };
 
 const FLASH_MS = 3000;
@@ -73,11 +78,16 @@ export class LibraryAppModel extends Observable<AppState> {
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
 
-  // Both are injected: the app passes the real use cases and the device camera,
-  // tests pass memory/fake Data and a fake camera.
+  private readonly camera: CoverCamera;
+  private readonly feedback: Feedback;
+
+  // All injected: the app passes the real use cases, this platform's device
+  // family and the account model; tests pass memory/fake Data and a fake family,
+  // and leave the account out unless they test it.
   constructor(
     private readonly openController: () => Promise<LibraryController>,
-    private readonly camera: CoverCamera,
+    devices: DeviceFamily,
+    private readonly account: AccountModel | null = null,
   ) {
     super({
       ready: false,
@@ -93,6 +103,9 @@ export class LibraryAppModel extends Observable<AppState> {
       busy: false,
       prompt: null,
     });
+    // One family, so the camera and the feedback always belong to the same platform.
+    this.camera = devices.createCoverCamera();
+    this.feedback = devices.createFeedback();
   }
 
   // --- Derived values ---
@@ -108,25 +121,42 @@ export class LibraryAppModel extends Observable<AppState> {
     return screen === "main" ? TAB_HEADINGS[tab] : this.selected?.title ?? "Book";
   }
 
+  /**
+   * Accounts are wired in and nobody is signed in: the shelves stay empty and
+   * nothing can be scanned until someone signs in on the Account tab.
+   */
+  get locked(): boolean {
+    return this.account !== null && this.account.getState().account === null;
+  }
+
   /** The line under the heading (counts, or the scan hint). */
   get hint(): string | null {
     const { screen, tab, view, reading } = this.getState();
     if (screen !== "main") {
       return null;
     }
+    if (this.locked && tab !== "account") {
+      return "Sign in on the Account tab to use your library.";
+    }
     const hints: Record<MenuTab, string> = {
       tbr: reading === ReadingStatus.READ ? "Owned books you have finished." : "Owned books waiting to be read.",
       owned: `${Labels.count(view.owned.length, "title")} owned`,
       wanted: `${Labels.count(view.wanted.length, "title")} wanted`,
       scan: "Point the camera at the ISBN barcode, or type it below.",
+      account: this.account?.hint ?? "Accounts aren't set up in this copy of the app.",
     };
     return hints[tab];
+  }
+
+  /** Whether this device family has a camera; without one, Scan offers typing only. */
+  get cameraAvailable(): boolean {
+    return this.camera.available;
   }
 
   /** The camera only reads barcodes when nothing else is going on. */
   get cameraListening(): boolean {
     const { busy, prompt } = this.getState();
-    return !busy && prompt === null;
+    return !busy && prompt === null && !this.locked;
   }
 
   /** What fills the screen: one of the four tabs, or a book's detail. */
@@ -166,33 +196,47 @@ export class LibraryAppModel extends Observable<AppState> {
       return;
     }
     this.started = true;
-    this.controller = await this.openController();
-    this.setState({ ready: true, view: await this.controller.view(), busy: true });
+    const controller = await this.openController();
+    this.controller = controller;
+    if (this.account) {
+      await this.account.start();
+      controller.useOwner(this.account.ownerId);
+      this.account.watchOwner((ownerId) => void this.switchOwner(ownerId));
+      this.account.watchLibrary(() => void this.reload());
+    }
+    this.setState({ ready: true, view: await this.viewOf(controller), busy: true });
     try {
-      await this.controller.fillMissingFacts();
-      this.setState({ view: await this.controller.view() });
+      if (!this.locked) {
+        await controller.fillMissingFacts();
+        this.setState({ view: await this.viewOf(controller) });
+      }
     } catch {
       /* backfill is best effort */
     } finally {
       this.setState({ busy: false });
     }
+    void this.account?.sync();
   }
 
   dispose(): void {
     this.clearFlashTimer();
+    this.account?.dispose();
   }
 
   // --- Navigation and inputs ---
 
   selectTab(tab: MenuTab): void {
+    this.tickIfChanged(tab, this.getState().tab);
     this.setState({ tab, screen: "main" });
   }
 
   showReading(reading: ReadingStatus): void {
+    this.tickIfChanged(reading, this.getState().reading);
     this.setState({ reading });
   }
 
   setCatalogMode(catalogMode: CatalogMode): void {
+    this.tickIfChanged(catalogMode, this.getState().catalogMode);
     this.setState({ catalogMode });
   }
 
@@ -222,9 +266,13 @@ export class LibraryAppModel extends Observable<AppState> {
   // → shelf → (Owned: purchased/gifted) → read/unread → save
 
   scan(code: string = this.getState().isbnDraft): Promise<void> {
+    if (this.locked) {
+      this.flash("Sign in on the Account tab to add books.");
+      return Promise.resolve();
+    }
     return this.run(async (library) => {
       this.setState({ prompt: { kind: "scanConfirm", draft: ScanDraft.from(await library.lookup(code)) } });
-    });
+    }, false);
   }
 
   /** Tap a cover in the confirm popup: the one that matches the owner's copy. */
@@ -456,13 +504,34 @@ export class LibraryAppModel extends Observable<AppState> {
     });
   }
 
+  // What the shelves show: nothing while locked, otherwise the owner's library.
+  private async viewOf(library: LibraryController): Promise<LibraryView> {
+    return this.locked ? LibraryView.empty() : library.view();
+  }
+
+  // Someone signed in or out: show that owner's library from the main screen.
+  private async switchOwner(ownerId: string): Promise<void> {
+    const library = this.controller;
+    if (library) {
+      library.useOwner(ownerId);
+      this.setState({ view: await this.viewOf(library), selectedIsbn: null, screen: "main" });
+    }
+  }
+
+  // A sync brought books from another phone.
+  private async reload(): Promise<void> {
+    if (this.controller) {
+      this.setState({ view: await this.viewOf(this.controller) });
+    }
+  }
+
   /**
    * The one wrapper every action goes through: set busy, close the popup,
    * do the work, reload the view, and turn errors into a flash banner
    * (domain rule messages as a normal notice; an unreachable book source or
-   * anything unexpected in red).
+   * anything unexpected in red). A change to the library is then synced.
    */
-  private async run(work: (library: LibraryController) => Promise<void>): Promise<void> {
+  private async run(work: (library: LibraryController) => Promise<void>, changesLibrary = true): Promise<void> {
     const library = this.controller;
     if (!library) {
       return;
@@ -470,7 +539,10 @@ export class LibraryAppModel extends Observable<AppState> {
     this.setState({ busy: true, prompt: null });
     try {
       await work(library);
-      this.setState({ view: await library.view() });
+      this.setState({ view: await this.viewOf(library) });
+      if (changesLibrary) {
+        void this.account?.sync();
+      }
     } catch (error) {
       if (error instanceof DomainError) {
         this.flash(error.message);
@@ -522,8 +594,16 @@ export class LibraryAppModel extends Observable<AppState> {
   // Banner that hides itself after FLASH_MS; a new message restarts the timer.
   private flash(text: string, tone: FlashTone = "info"): void {
     this.clearFlashTimer();
+    this.feedback.message(tone === "danger");
     this.setState({ flash: { text, tone } });
     this.flashTimer = setTimeout(() => this.setState({ flash: null }), FLASH_MS);
+  }
+
+  // A tick only when a tab or switch actually changes, not when it is tapped again.
+  private tickIfChanged<T>(next: T, current: T): void {
+    if (next !== current) {
+      this.feedback.selection();
+    }
   }
 
   private clearFlashTimer(): void {

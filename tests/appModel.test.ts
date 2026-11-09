@@ -9,12 +9,12 @@ import { CameraUnavailableError } from "../presentation/model/coverCamera";
 import { Labels } from "../presentation/model/labels";
 import { LibraryAppModel } from "../presentation/model/libraryAppModel";
 import { ScanDraft } from "../presentation/model/scanDraft";
-import { FOX, FakeCoverCamera, MY_PHOTO, controllerFor } from "./fixtures";
+import { FOX, FakeDevices, MY_PHOTO, controllerFor } from "./fixtures";
 
 let model: LibraryAppModel;
 
 beforeEach(async () => {
-  model = new LibraryAppModel(async () => controllerFor(), new FakeCoverCamera());
+  model = new LibraryAppModel(async () => controllerFor(), new FakeDevices());
   await model.start();
 });
 
@@ -206,7 +206,7 @@ test("the confirm popup offers every cover and the owner's photo; the pick is sa
 test("when no source knows the binding, the owner is asked hardcover or paperback", async () => {
   const unknownBinding = new LibraryAppModel(
     async () => controllerFor(undefined, { ...FOX, format: BookFormat.UNKNOWN }),
-    new FakeCoverCamera(),
+    new FakeDevices(),
   );
   await unknownBinding.start();
   await unknownBinding.scan(FOX.isbn);
@@ -240,11 +240,15 @@ test("change cover on the detail screen saves the photo", async () => {
 });
 
 test("a refused camera explains itself and changes nothing", async () => {
-  const refused = new LibraryAppModel(async () => controllerFor(), {
-    takePhoto: async () => {
-      throw new CameraUnavailableError("Allow camera access to photograph your cover.");
-    },
-  });
+  const refused = new LibraryAppModel(
+    async () => controllerFor(),
+    new FakeDevices({
+      available: true,
+      takePhoto: async () => {
+        throw new CameraUnavailableError("Allow camera access to photograph your cover.");
+      },
+    }),
+  );
   await refused.start();
   await refused.scan(FOX.isbn);
   await refused.photographScanCover();

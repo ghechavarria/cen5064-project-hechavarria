@@ -1,0 +1,13 @@
+%%{init: {"flowchart": {"rankSpacing": 22, "nodeSpacing": 28, "diagramPadding": 4}}}%%
+flowchart TD
+    a((A)) --> pick[Pick the cover<br/>or photograph it]
+    pick --> binding{Binding<br/>known?}
+    binding -- no --> askBinding[Ask hardcover<br/>or paperback]
+    binding -- yes --> shelf
+    askBinding --> shelf{Owned or<br/>Wanted?}
+    shelf -- Wanted --> reading
+    shelf -- Owned --> acquired{Purchased<br/>or gifted?}
+    acquired -- purchased --> reading
+    acquired -- gifted --> giver[Enter the<br/>giver's name] --> reading
+    reading[Read or unread?] --> save[Save the book]
+    save --> show[Show it on its shelf] --> stop((End))
