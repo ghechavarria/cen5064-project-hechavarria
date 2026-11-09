@@ -1,11 +1,11 @@
 /**
- * Data: SqliteBookRepository implements the BookRepository port on device.
+ * Data: SqliteBookRepository implements the BookRepository and IsbnCache ports on device.
  * Owns the schema and its upgrades; row ↔ Book conversion is BookRowMapper's job.
  * Only CompositionRoot (bootstrap.ts) opens it; nothing else imports expo-sqlite.
  */
 import * as SQLite from "expo-sqlite";
 import { Acquisition, Book, BookFormat, PersonalLibrary, ReadingStatus, Shelf } from "../domain";
-import { BookMetadata, BookRepository } from "../service/ports";
+import { BookMetadata, BookRepository, IsbnCache } from "../service/ports";
 import { BookRow, BookRowMapper } from "./bookRowMapper";
 
 // Mutable book columns, shared by UPDATE and INSERT so the list is written once.
@@ -50,7 +50,7 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
 // cover-by-ISBN). A database without it holds older lookups: they are dropped once.
 const CACHE_VERSION_COLUMN = "parser_v4";
 
-export class SqliteBookRepository implements BookRepository {
+export class SqliteBookRepository implements BookRepository, IsbnCache {
   private queue: Promise<void> = Promise.resolve();
 
   private constructor(private readonly db: SQLite.SQLiteDatabase) {}

@@ -10,12 +10,12 @@ import { GoogleBooksIsbnLookup } from "../data/googleBooks";
 import { Json } from "../data/http";
 import { CachingIsbnLookup, MergedIsbnLookup } from "../data/isbnLookup";
 import { OpenLibraryIsbnLookup } from "../data/openLibrary";
-import { BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../domain";
+import { Book, BookFormat, Gift, Purchase, ReadingStatus, Shelf } from "../domain";
 import { GiftSourceRequiredError, NotAcquiredError } from "../domain/exceptions";
 import { Catalog } from "../presentation/model/catalog";
 import { LibraryController } from "../presentation/model/libraryController";
 import { UseCases } from "../service";
-import { BookMetadata, BookSourceUnavailableError, IsbnLookup } from "../service/ports";
+import { BookMetadata, BookRepository, BookSourceUnavailableError, IsbnCache, IsbnLookup } from "../service/ports";
 import { FOX, MY_PHOTO, foxLookup } from "./fixtures";
 
 const FOX_ISBN10 = "0-14-032872-6"; // the same edition as FOX.isbn, 9780140328721
@@ -51,13 +51,13 @@ const openLibraryJson = async (url: string): Promise<Json> => {
 };
 
 /** The production wiring, with canned JSON in place of HTTP. */
-function realLookup(repository: MemoryBookRepository): IsbnLookup {
+function realLookup(cache: IsbnCache = new MemoryBookRepository()): IsbnLookup {
   const google = new GoogleBooksIsbnLookup("KEY", googleJson, async () => "image/jpeg");
-  return new CachingIsbnLookup(new MergedIsbnLookup([google, new OpenLibraryIsbnLookup(openLibraryJson)]), repository);
+  return new CachingIsbnLookup(new MergedIsbnLookup([google, new OpenLibraryIsbnLookup(openLibraryJson)]), cache);
 }
 
-function library(lookup?: IsbnLookup, repository = new MemoryBookRepository(), ownerId = "local") {
-  return new LibraryController(new UseCases(repository, lookup ?? realLookup(repository)), ownerId);
+function library(lookup?: IsbnLookup, repository: BookRepository = new MemoryBookRepository(), ownerId = "local") {
+  return new LibraryController(new UseCases(repository, lookup ?? realLookup()), ownerId);
 }
 
 // --- Feature 1: Scan a book ---
@@ -229,4 +229,28 @@ describe("Feature 4 readiness: every library belongs to one account", () => {
   });
   // The storage side of this rule is the BookRepository contract in persistence.test.ts,
   // which the sync adapter will have to pass like the Memory, JSON and SQLite adapters.
+
+  test("a store with only the BookRepository port (no ISBN cache) runs every use case", async () => {
+    // Like the planned sync adapter: it keeps libraries and nothing else. This
+    // compiles only while BookRepository does not drag in IsbnCache's methods.
+    class LibraryOnlyStore implements BookRepository {
+      private readonly memory = new MemoryBookRepository();
+      loadLibrary(ownerId: string) {
+        return this.memory.loadLibrary(ownerId);
+      }
+      save(ownerId: string, book: Book) {
+        return this.memory.save(ownerId, book);
+      }
+      delete(ownerId: string, isbn: string) {
+        return this.memory.delete(ownerId, isbn);
+      }
+    }
+    const store = new LibraryOnlyStore();
+    expect("cachedIsbn" in store).toBe(false);
+
+    const shelf = library(foxLookup(), store);
+    await shelf.scan(FOX, Shelf.WANTED, ReadingStatus.UNREAD);
+    await shelf.setReading(FOX.isbn, ReadingStatus.READ);
+    expect((await shelf.view()).wanted.map((book) => book.readingStatus)).toEqual([ReadingStatus.READ]);
+  });
 });

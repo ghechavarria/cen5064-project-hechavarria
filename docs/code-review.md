@@ -19,7 +19,7 @@ flowchart TB
     end
     subgraph S["service/  (Service tier)"]
         uc["Use cases: Scan · Lookup · Move · SetReading · ChangeCover · Delete · FillMissingFacts"]
-        ports["ports.ts — interfaces<br/>BookRepository · IsbnLookup"]
+        ports["ports.ts — interfaces<br/>BookRepository · IsbnCache · IsbnLookup"]
     end
     subgraph D["domain/  (Domain tier)"]
         rules["Book · PersonalLibrary · Purchase / Gift · Isbn · enums · errors"]
@@ -286,7 +286,7 @@ classDiagram
 | Can two owners have the same book? | Yes: every repository keys rows by owner and ISBN together, and SQLite enforces `UNIQUE (owner_id, isbn)`. |
 | What isn't built yet? | Core feature 4, Google Account library sync (planned for weeks 10–11); until then the app uses one owner (`"local"`). Also not handled: the printing number (reprints share an ISBN). The camera is checked by hand on a phone. |
 
-`npm test` runs **145 tests** in 10 files: one or more per tier, the repository contract against memory, JSON and a real SQLite database (Node's built-in `node:sqlite`), the failure cases, one file that drives each core feature end to end (`coreFeatures.test.ts`), and the architecture rules.
+`npm test` runs **146 tests** in 10 files: one or more per tier, the repository contract against memory, JSON and a real SQLite database (Node's built-in `node:sqlite`), the failure cases, one file that drives each core feature end to end (`coreFeatures.test.ts`), and the architecture rules.
 
 
 ---

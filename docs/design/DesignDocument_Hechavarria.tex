@@ -81,7 +81,7 @@
 
 \vspace{2cm}
 
-{\large Version 1.1}
+{\large Version 1.2}
 
 \vspace{3cm}
 
@@ -124,6 +124,8 @@ October 10, 2026
 1.0 & Grace Hechavarria & Initial release: architecture, components, detailed design, sprint planning, design rationale, and verification of the midterm build. & October 10, 2026 \\
 \hline
 1.1 & Grace Hechavarria & Sprint 7 hardening: ISBN check-digit validation, one error type and a timeout for unreachable book sources, recovery from damaged storage, books unique per owner in SQLite, one ISBN-13 key per book (ADR-010); scope for the final frozen to four core features, with the second-half plan aligned to it; 145 automated tests. & October 18, 2026 \\
+\hline
+1.2 & Grace Hechavarria & SOLID refactor (Interface Segregation): \texttt{BookRepository} no longer extends \texttt{IsbnCache}, so use cases depend only on the library methods they call and the planned sync store need not cache lookups; 146 automated tests. & November 6, 2026 \\
 \hline
 \end{tabular}
 \end{table}
@@ -351,7 +353,7 @@ Figure~\ref{fig:iface_domain} shows the domain interface. \texttt{PersonalLibrar
 \label{fig:iface_data}
 \end{figure}
 
-Figure~\ref{fig:iface_data} shows the persistence interface. \texttt{BookRepository} extends \texttt{IsbnCache}, so one store holds both the library and the cached lookups. Three adapters implement it. \texttt{JsonBookRepository} reuses \texttt{MemoryBookRepository} by composition and only adds loading and saving to browser storage. \texttt{BookRowMapper} is the single translation between a stored row and a \texttt{Book} (Data Mapper pattern), including the defaults for rows saved by older versions.
+Figure~\ref{fig:iface_data} shows the persistence interface. \texttt{BookRepository} (the library) and \texttt{IsbnCache} (looked-up metadata) are separate ports, so the use cases depend only on the library methods they call and a store with no reason to cache lookups, such as the planned Google Account sync, need not implement the cache (Interface Segregation). The three device stores implement both, so one store holds the library and the cached lookups. \texttt{JsonBookRepository} reuses \texttt{MemoryBookRepository} by composition and only adds loading and saving to browser storage. \texttt{BookRowMapper} is the single translation between a stored row and a \texttt{Book} (Data Mapper pattern), including the defaults for rows saved by older versions.
 
 \subsubsection{Book-Source Adapters}
 
@@ -394,7 +396,8 @@ export interface IsbnCache {
   cacheIsbn(metadata: BookMetadata): Promise<void>;
 }
 
-export interface BookRepository extends IsbnCache {
+/** Kept separate from IsbnCache: a library store need not cache lookups. */
+export interface BookRepository {
   loadLibrary(ownerId: string): Promise<PersonalLibrary>;
   save(ownerId: string, book: Book): Promise<Book>;
   delete(ownerId: string, isbn: string): Promise<void>;
@@ -1162,7 +1165,7 @@ The Google Books key is missing or over quota & The key is optional: without it 
 \hline
 Review findings take longer than planned & Weeks 8--9 hold no new features, only findings and tests for features 1--3, ordered by how much they affect the grade and the user. \\
 \hline
-One developer, limited time & Work is split into small issues with weekly commits, and CI and the 145 automated tests catch regressions immediately. \\
+One developer, limited time & Work is split into small issues with weekly commits, and CI and the 146 automated tests catch regressions immediately. \\
 \hline
 \end{tabular}
 
@@ -1307,7 +1310,7 @@ The first issue was \textbf{portability}: the review partner had to run the app 
 
 \subsubsection{Decisions Made}
 
-The design is centered on the scan workflow and the collection rules. The rules are methods of the domain classes; the use cases only orchestrate load, change, and save; the Data tier is replaceable behind two ports; and the screens are thin views of one observable view model. External sources are combined behind a single interface, so adding or removing a source does not change any caller.
+The design is centered on the scan workflow and the collection rules. The rules are methods of the domain classes; the use cases only orchestrate load, change, and save; the Data tier is replaceable behind its ports (library, ISBN cache, and book sources, each kept to what its callers use); and the screens are thin views of one observable view model. External sources are combined behind a single interface, so adding or removing a source does not change any caller.
 
 \subsubsection{Criteria Used to Guide Decisions}
 
@@ -1328,7 +1331,7 @@ The main debate was between keeping the external integrations to the minimum (Op
 
 Verification in software is defined by the IEEE 1012 standard as ``the process of evaluating software to determine whether the products of a given development phase satisfy the conditions imposed at the start of that phase'' (IEEE, 2024).
 
-MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 145 tests in 10 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
+MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 146 tests in 10 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
 
 \begin{table}[H]
 \centering
@@ -1344,10 +1347,10 @@ controller.test.ts & Controller, library view, JSON round trip & 6 \\
 catalog.test.ts & A--Z, author, and series grouping & 3 \\
 persistence.test.ts & BookRowMapper (legacy and damaged rows), the repository contract for memory, JSON and SQLite, owner isolation, schema upgrades & 29 \\
 resilience.test.ts & ISBN check digits and ISBN-10 to ISBN-13 keys, timeouts, error statuses, malformed JSON, the banner shown for each & 17 \\
-coreFeatures.test.ts & Each of the four core features end to end, with the real lookup pipeline on canned JSON & 11 \\
+coreFeatures.test.ts & Each of the four core features end to end, with the real lookup pipeline on canned JSON; a library-only store runs every use case & 12 \\
 architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \midrule
-\textbf{Total} & \textbf{Test Suites: 10 passed; Tests: 145 passed} & \textbf{145} \\
+\textbf{Total} & \textbf{Test Suites: 10 passed; Tests: 146 passed} & \textbf{146} \\
 \bottomrule
 \end{tabular}
 \caption{Automated test suite results (\texttt{npm test}, October 18, 2026)}
