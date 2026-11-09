@@ -99,7 +99,7 @@ People who run the app never do this. It is how the shared project behind the ac
 2. **SQL Editor** → **New query** → paste all of [`supabase/migrations/20261107000000_library_books.sql`](supabase/migrations/20261107000000_library_books.sql) → **Run**. It creates the `library_books` table, its row level security rules, and turns on Realtime for auto sync.
 3. **Authentication** → **Sign In / Providers**: keep **Email** enabled, turn **Confirm email** off, and **Save changes** (the free plan's email sender only reaches the project's own team).
 4. To point the app at your project, put its **Project URL** and **Publishable key** (Project Settings → API Keys) in `.env` as `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_KEY`. Never use the secret or `service_role` key.
-5. Free projects pause after about a week without activity. If sign-in stops working, open the dashboard and click **Restore project**.
+5. Free projects pause after about a week without activity. The **Keep Supabase awake** workflow (`.github/workflows/keep-supabase-awake.yml`) pings the shared project's table twice a week with the public key, and fails (GitHub emails the owner) if the project doesn't answer. Scheduled workflows run only from `main`, and GitHub turns them off after 60 days without commits, so re-enable it on the Actions tab if that happens. If sign-in stops working anyway, open the dashboard and click **Restore project**.
 
 **Web browser (limited):** the app also runs in a browser (press `w` in the terminal after `npx expo start`), but full functionality is only available on mobile. The web version has no camera, so you type the ISBN instead of scanning it and cannot take cover photos. Accounts and sync work in the browser too.
 
