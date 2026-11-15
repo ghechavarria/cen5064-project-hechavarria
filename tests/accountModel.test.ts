@@ -136,7 +136,7 @@ describe("Account tab", () => {
     phoneA.app.chooseReading(ReadingStatus.UNREAD);
     await settle();
     await settle();
-    expect((await backup.pull("user-1")).map((version) => version.book.title)).toEqual(["Fantastic Mr. Fox"]);
+    expect((await backup.stored("user-1")).map((version) => version.book.title)).toEqual(["Fantastic Mr. Fox"]);
 
     await phoneB.account.sync();
     await settle();
@@ -180,7 +180,44 @@ describe("Account tab", () => {
     backup.offline = false;
     await account.sync();
     expect(account.getState().sync).toBe("synced");
-    expect(await backup.pull("user-1")).toHaveLength(1);
+    expect(await backup.stored("user-1")).toHaveLength(1);
+  });
+
+  test("pull to refresh: a book list pulled down syncs and shows books from another phone", async () => {
+    const backup = new FakeBackup();
+    const accounts = new FakeAccounts();
+    const phoneA = await phone(accounts, backup);
+    const phoneB = await phone(accounts, backup);
+    expect(phoneB.app.canRefresh).toBe(false); // signed out: nothing to sync with
+    await signIn(phoneA.account);
+    await signIn(phoneB.account);
+    phoneB.account.dispose(); // no auto sync on phone B: only the pull brings the book
+
+    await phoneA.store.save("user-1", owned(MATILDA));
+    await phoneA.account.sync();
+    expect(titles(phoneB.app)).toEqual([]);
+
+    expect(phoneB.app.canRefresh).toBe(true);
+    const pulled = phoneB.app.refresh();
+    expect(phoneB.app.getState().refreshing).toBe(true);
+    await pulled;
+    await settle();
+    expect(phoneB.app.getState().refreshing).toBe(false);
+    expect(titles(phoneB.app)).toEqual(["Matilda"]);
+    expect(phoneB.app.getState().flash).toBeNull();
+  });
+
+  test("pull to refresh offline: the list stays, the spinner stops, and a banner says it will sync later", async () => {
+    const backup = new FakeBackup();
+    const { account, app } = await phone(new FakeAccounts(), backup);
+    await signIn(account);
+    backup.offline = true;
+    await app.refresh();
+    expect(app.getState().refreshing).toBe(false);
+    expect(app.getState().flash?.text).toBe(
+      "Couldn't reach your account. Your books are saved on this phone and will sync later.",
+    );
+    app.dispose();
   });
 
   test("with no account service the Account tab says so, and the library stays locked", async () => {

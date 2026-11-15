@@ -26,6 +26,7 @@ import { LibraryPrompts } from "./components/LibraryPrompts";
 import { Logo } from "./components/Logo";
 import { MenuBar } from "./components/MenuBar";
 import { OwnedCatalog } from "./components/OwnedCatalog";
+import { PullToSync } from "./components/PullToSync";
 import { ScanForm } from "./components/ScanForm";
 import { ScreenHeader } from "./components/ScreenHeader";
 import { SegmentedControl } from "./components/SegmentedControl";
@@ -102,6 +103,10 @@ function LibraryScreen() {
   const page = model.page;
   const selected = model.selected;
   const bookList = model.bookList;
+  // The book lists sync when pulled down, while someone is signed in.
+  const pullToSync = model.canRefresh ? (
+    <PullToSync refreshing={state.refreshing} onRefresh={() => void model.refresh()} />
+  ) : undefined;
 
   return (
     <View style={styles.shell}>
@@ -155,6 +160,7 @@ function LibraryScreen() {
               mode={state.catalogMode}
               onMode={(mode) => model.setCatalogMode(mode)}
               onOpen={openBook}
+              refreshControl={pullToSync}
             />
           ) : (
             <ScrollView
@@ -162,6 +168,7 @@ function LibraryScreen() {
               contentContainerStyle={styles.main}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              refreshControl={bookList ? pullToSync : undefined}
             >
               {page === "scan" ? (
                 <ScanForm

@@ -222,8 +222,9 @@ class NodeSqliteDatabase {
   async getFirstAsync<T>(sql: string, params: unknown[] = []): Promise<T | null> {
     return (this.db.prepare(sql).get(...params) as T | undefined) ?? null;
   }
-  async runAsync(sql: string, params: unknown[] = []): Promise<void> {
-    this.db.prepare(sql).run(...params);
+  async runAsync(sql: string, params: unknown[] = []): Promise<{ changes: number }> {
+    const result = this.db.prepare(sql).run(...params) as { changes: number | bigint };
+    return { changes: Number(result.changes) };
   }
 }
 
@@ -353,6 +354,70 @@ describe.each(localStores)("SyncStore contract: %s", (_name, open) => {
     ]);
     expect(await store.versions("local")).toMatchObject([{ updatedAt: 1000, deletedAt: null, book: { shelf: Shelf.WANTED } }]);
   });
+
+  // --- Incremental sync (ADR-013) ---
+
+  test("saves and deletes made here are unsent until marked sent; applied versions count and are never unsent", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    const matilda = new Book({ ...FOX, isbn: "9780142410370", title: "Matilda", shelf: Shelf.WANTED });
+    await store.save("account-1", FULL_BOOK());
+    await store.save("account-1", matilda);
+    time.advance();
+    await store.delete("account-1", matilda.isbn);
+    const unsent = await store.unsentVersions("account-1");
+    expect(unsent.map((version) => [version.book.isbn, version.updatedAt, version.deletedAt])).toEqual([
+      [FOX.isbn, 1000, null],
+      [matilda.isbn, 2000, 2000],
+    ]);
+    expect(await store.unsentVersions("account-2")).toEqual([]);
+
+    await store.markSent("account-1", unsent);
+    expect(await store.unsentVersions("account-1")).toEqual([]);
+
+    const fromBackup = { book: new Book({ ...FOX, isbn: "9780141346809", shelf: Shelf.WANTED }), updatedAt: 5, deletedAt: null };
+    expect(await store.applyVersions("account-1", [fromBackup, { ...unsent[0], updatedAt: 999 }])).toBe(1); // the older Fox is skipped
+    expect(await store.unsentVersions("account-1")).toEqual([]);
+  });
+
+  test("a book changed again after it was sent stays unsent; a newer copy from the backup replaces an unsent one", async () => {
+    const time = tick();
+    const store = await open(time.clock);
+    await store.save("account-1", FULL_BOOK());
+    const sent = await store.unsentVersions("account-1");
+    time.advance();
+    await store.save("account-1", new Book({ ...FOX, shelf: Shelf.WANTED })); // changed while the push ran
+    await store.markSent("account-1", sent);
+    expect(await store.unsentVersions("account-1")).toMatchObject([{ updatedAt: 2000 }]);
+
+    await store.applyVersions("account-1", [{ book: FULL_BOOK(), updatedAt: 3000, deletedAt: null }]);
+    expect(await store.unsentVersions("account-1")).toEqual([]);
+  });
+
+  test("keeps each owner's backup cursor; none before the first sync", async () => {
+    const store = await open(tick().clock);
+    expect(await store.syncCursor("account-1")).toBeNull();
+    await store.saveSyncCursor("account-1", 1_700_000_000_123);
+    await store.saveSyncCursor("account-1", 1_700_000_000_456);
+    expect(await store.syncCursor("account-1")).toBe(1_700_000_000_456);
+    expect(await store.syncCursor("account-2")).toBeNull();
+  });
+});
+
+test("JSON: unsent books and sync cursors survive reopening the app; an older save has neither", async () => {
+  const storage = new FakeStorage();
+  const first = new JsonBookRepository(storage, () => 1000);
+  await first.save("account-1", FULL_BOOK());
+  await first.saveSyncCursor("account-1", 77);
+  const reopened = new JsonBookRepository(storage);
+  expect(await reopened.unsentVersions("account-1")).toHaveLength(1);
+  expect(await reopened.syncCursor("account-1")).toBe(77);
+
+  const older = new FakeStorage();
+  older.setItem("myhomelib.library.v1", JSON.stringify({ books: [BookRowMapper.toRow("account-1", FULL_BOOK(), 5)], cacheParser: 4 }));
+  const upgraded = new JsonBookRepository(older);
+  expect(await upgraded.unsentVersions("account-1")).toEqual([]);
+  expect(await upgraded.syncCursor("account-1")).toBeNull();
 });
 
 // --- One key per book: ISBN-10 rows saved by older builds ---

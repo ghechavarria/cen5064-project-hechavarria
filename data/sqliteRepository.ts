@@ -50,6 +50,10 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   ["isbn_cache", "cover_candidates", "TEXT NOT NULL DEFAULT '[]'"],
   ["books", "updated_at", "INTEGER NOT NULL DEFAULT 0"],
   ["books", "deleted_at", "INTEGER"],
+  // 1 while a change made on this phone hasn't reached the account backup (ADR-013).
+  // Rows from before incremental sync read 0: their owner has no cursor yet, so
+  // the first sync compares the whole library anyway.
+  ["books", "unsent", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 // Marker column for the current lookup format (edition-first + Google Books with
@@ -107,6 +111,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
         format TEXT NOT NULL DEFAULT 'UNKNOWN',
         updated_at INTEGER NOT NULL DEFAULT 0,
         deleted_at INTEGER,
+        unsent INTEGER NOT NULL DEFAULT 0,
         UNIQUE (owner_id, isbn)
       );`;
   }
@@ -126,6 +131,10 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
         page_count INTEGER NOT NULL DEFAULT 0,
         subjects TEXT NOT NULL DEFAULT '',
         parser_v2 INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE TABLE IF NOT EXISTS sync_cursors (
+        owner_id TEXT PRIMARY KEY,
+        cursor INTEGER NOT NULL
       );
     `);
     // Read each table's existing columns once, then add whatever is missing.
@@ -222,7 +231,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
   // Insert, or update this owner's row for the ISBN (reviving a deleted one).
   async save(ownerId: string, book: Book): Promise<Book> {
     return this.enqueue(async () => {
-      await this.upsert(BookRowMapper.toRow(ownerId, book, this.clock()));
+      await this.upsert(BookRowMapper.toRow(ownerId, book, this.clock()), true);
       return book;
     });
   }
@@ -232,7 +241,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
     return this.enqueue(async () => {
       const now = this.clock();
       await this.db.runAsync(
-        "UPDATE books SET deleted_at = ?, updated_at = ? WHERE owner_id = ? AND isbn = ? AND deleted_at IS NULL",
+        "UPDATE books SET deleted_at = ?, updated_at = ?, unsent = 1 WHERE owner_id = ? AND isbn = ? AND deleted_at IS NULL",
         [now, now, ownerId, isbn],
       );
     });
@@ -247,24 +256,65 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
 
   // A version replaces the stored row only if it is newer, so a change made
   // while a sync was running is never overwritten by an older copy.
-  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<number> {
+    return this.enqueue(async () => {
+      let applied = 0;
+      for (const version of versions) {
+        const row = BookRowMapper.fromVersion(ownerId, version);
+        applied += await this.upsert(row, false, "WHERE excluded.updated_at > books.updated_at");
+      }
+      return applied;
+    });
+  }
+
+  async unsentVersions(ownerId: string): Promise<BookVersion[]> {
+    return this.enqueue(async () => {
+      const rows = await this.db.getAllAsync<Record<string, unknown>>(
+        "SELECT * FROM books WHERE owner_id = ? AND unsent = 1",
+        [ownerId],
+      );
+      return rows.map((row) => BookRowMapper.toVersion(this.mapRow(row)));
+    });
+  }
+
+  // Only where the stored row is still the version that was sent.
+  async markSent(ownerId: string, versions: BookVersion[]): Promise<void> {
     return this.enqueue(async () => {
       for (const version of versions) {
-        await this.upsert(BookRowMapper.fromVersion(ownerId, version), "WHERE excluded.updated_at > books.updated_at");
+        await this.db.runAsync("UPDATE books SET unsent = 0 WHERE owner_id = ? AND isbn = ? AND updated_at = ?", [
+          ownerId,
+          version.book.isbn,
+          version.updatedAt,
+        ]);
       }
     });
   }
 
-  // One row in, by (owner, ISBN), optionally only when `condition` holds. Every
-  // value is a bound parameter; only fixed column names and clauses are spliced in.
-  private async upsert(row: BookRow, condition = ""): Promise<void> {
-    await this.db.runAsync(
-      `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")})
-       VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")})
-       ON CONFLICT (owner_id, isbn) DO UPDATE SET ${BOOK_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}
+  async syncCursor(ownerId: string): Promise<number | null> {
+    return this.enqueue(async () => {
+      const row = await this.db.getFirstAsync<{ cursor: number }>("SELECT cursor FROM sync_cursors WHERE owner_id = ?", [ownerId]);
+      return row ? Number(row.cursor) : null;
+    });
+  }
+
+  async saveSyncCursor(ownerId: string, cursor: number): Promise<void> {
+    return this.enqueue(async () => {
+      await this.db.runAsync("INSERT OR REPLACE INTO sync_cursors (owner_id, cursor) VALUES (?, ?)", [ownerId, cursor]);
+    });
+  }
+
+  // One row in, by (owner, ISBN), optionally only when `condition` holds; marked
+  // unsent when the change was made on this phone. Returns 1 if it was stored.
+  // Every value is a bound parameter; only fixed column names and clauses are spliced in.
+  private async upsert(row: BookRow, unsent: boolean, condition = ""): Promise<number> {
+    const result = await this.db.runAsync(
+      `INSERT INTO books (owner_id, isbn, ${BOOK_COLUMNS.join(", ")}, unsent)
+       VALUES (?, ?, ${BOOK_COLUMNS.map(() => "?").join(", ")}, ?)
+       ON CONFLICT (owner_id, isbn) DO UPDATE SET ${BOOK_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}, unsent = excluded.unsent
        ${condition}`,
-      [row.ownerId, row.isbn, ...SqliteBookRepository.values(row)],
+      [row.ownerId, row.isbn, ...SqliteBookRepository.values(row), unsent ? 1 : 0],
     );
+    return result.changes;
   }
 
   async cachedIsbn(isbn: string): Promise<BookMetadata | null> {

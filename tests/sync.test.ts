@@ -135,13 +135,49 @@ describe("SyncLibraryUseCase", () => {
     expect(await phone.sync.execute(ACCOUNT)).toEqual({ downloaded: 0, uploaded: 1 });
   });
 
+  test("after the first sync, a sync fetches only what changed since the last one and sends only this phone's changes", async () => {
+    const backup = new FakeBackup();
+    const [phoneA, phoneB] = [new Phone(backup), new Phone(backup)];
+    await phoneA.at(10).store.save(ACCOUNT, owned(FOX));
+    await phoneA.store.save(ACCOUNT, owned(MATILDA));
+    await phoneA.sync.execute(ACCOUNT);
+    expect(await phoneB.sync.execute(ACCOUNT)).toEqual({ downloaded: 2, uploaded: 0 });
+    expect(backup.pulls).toEqual([null, null]); // each phone's first sync is a full one
+
+    const read = (await phoneA.store.loadLibrary(ACCOUNT)).get(MATILDA.isbn);
+    read.setReadingStatus(ReadingStatus.READ);
+    await phoneA.at(20).store.save(ACCOUNT, read);
+    expect(await phoneA.sync.execute(ACCOUNT)).toEqual({ downloaded: 0, uploaded: 1 }); // only Matilda goes up
+
+    const pushed = jest.spyOn(backup, "push");
+    expect(await phoneB.sync.execute(ACCOUNT)).toEqual({ downloaded: 1, uploaded: 0 });
+    // Phone A's first sync found the backup empty (cursor 0); phone B's saw both books (stamp 2).
+    expect(backup.pulls.slice(2)).toEqual([0, 2]);
+    expect(pushed).not.toHaveBeenCalled(); // phone B changed nothing, so it sends nothing
+    expect((await phoneB.store.loadLibrary(ACCOUNT)).get(MATILDA.isbn).readingStatus).toBe(ReadingStatus.READ);
+    expect(await phoneB.sync.execute(ACCOUNT)).toEqual({ downloaded: 0, uploaded: 0 });
+  });
+
+  test("a change that couldn't be sent offline is still sent on a later incremental sync", async () => {
+    const backup = new FakeBackup();
+    const phone = new Phone(backup);
+    await phone.at(10).store.save(ACCOUNT, owned(FOX));
+    await phone.sync.execute(ACCOUNT); // first (full) sync: now there is a cursor
+    await phone.at(20).store.delete(ACCOUNT, FOX.isbn);
+    backup.offline = true;
+    await expect(phone.sync.execute(ACCOUNT)).rejects.toBeInstanceOf(SyncUnavailableError);
+    backup.offline = false;
+    expect(await phone.sync.execute(ACCOUNT)).toEqual({ downloaded: 0, uploaded: 1 });
+    expect(await backup.stored(ACCOUNT)).toMatchObject([{ deletedAt: 20 }]);
+  });
+
   test("each account syncs only its own books", async () => {
     const backup = new FakeBackup();
     const phone = new Phone(backup);
     await phone.at(10).store.save(ACCOUNT, owned(FOX));
     await phone.store.save("user-2", owned(MATILDA));
     await phone.sync.execute(ACCOUNT);
-    expect((await backup.pull(ACCOUNT)).map((version) => version.book.title)).toEqual(["Fantastic Mr. Fox"]);
-    expect(await backup.pull("user-2")).toEqual([]);
+    expect((await backup.stored(ACCOUNT)).map((version) => version.book.title)).toEqual(["Fantastic Mr. Fox"]);
+    expect(await backup.stored("user-2")).toEqual([]);
   });
 });

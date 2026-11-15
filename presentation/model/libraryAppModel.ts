@@ -60,6 +60,7 @@ export type AppState = {
   giftName: string;
   flash: { text: string; tone: FlashTone } | null;
   busy: boolean;
+  refreshing: boolean; // a pull-down sync is running (the list shows its spinner)
   prompt: Prompt | null;
 };
 
@@ -101,6 +102,7 @@ export class LibraryAppModel extends Observable<AppState> {
       giftName: "",
       flash: null,
       busy: false,
+      refreshing: false,
       prompt: null,
     });
     // One family, so the camera and the feedback always belong to the same platform.
@@ -157,6 +159,11 @@ export class LibraryAppModel extends Observable<AppState> {
   get cameraListening(): boolean {
     const { busy, prompt } = this.getState();
     return !busy && prompt === null && !this.locked;
+  }
+
+  /** Pulling a book list down syncs it: only when someone is signed in to sync with. */
+  get canRefresh(): boolean {
+    return this.account !== null && !this.locked;
   }
 
   /** What fills the screen: one of the four tabs, or a book's detail. */
@@ -221,6 +228,27 @@ export class LibraryAppModel extends Observable<AppState> {
   dispose(): void {
     this.clearFlashTimer();
     this.account?.dispose();
+  }
+
+  /**
+   * Pull to refresh: sync now (only what changed since the last sync, ADR-013).
+   * New books from another phone reload the shelves through watchLibrary.
+   * Offline, the list stays as it is and a banner says it will sync later.
+   */
+  async refresh(): Promise<void> {
+    const account = this.account;
+    if (!account || !this.canRefresh || this.getState().refreshing) {
+      return;
+    }
+    this.setState({ refreshing: true });
+    try {
+      await account.sync();
+    } finally {
+      this.setState({ refreshing: false });
+    }
+    if (account.getState().sync === "waiting") {
+      this.flash("Couldn't reach your account. Your books are saved on this phone and will sync later.");
+    }
   }
 
   // --- Navigation and inputs ---

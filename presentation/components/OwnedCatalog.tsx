@@ -4,10 +4,11 @@
  * one scrolling list with the LetterRail beside it:
  *   - A–Z and Author: an index heading per section, then its books
  *   - Series: a fanned SeriesStack per series (tap to expand); standalone books listed plainly
+ * Pulling the list down (or the empty catalog) runs `refreshControl`, when given.
  * Grouping rules live in CatalogGrouping; rail math lives in AlphabetRail.
  */
-import { ComponentRef, useRef, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ComponentRef, ReactElement, useRef, useState } from "react";
+import { RefreshControlProps, ScrollView, Text, View } from "react-native";
 import { Book } from "../../domain";
 import { Catalog, CatalogMode, CatalogSection } from "../model/catalog";
 import { styles } from "../styles/ownedCatalog.styles";
@@ -28,11 +29,13 @@ export function OwnedCatalog({
   mode,
   onMode,
   onOpen,
+  refreshControl,
 }: {
   books: Book[];
   mode: CatalogMode;
   onMode: (mode: CatalogMode) => void;
   onOpen: (book: Book) => void;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // Each section's measured top inside the list, so the rail can jump to it exactly.
@@ -50,12 +53,15 @@ export function OwnedCatalog({
     return (
       <View style={styles.wrap}>
         <SegmentedControl segments={MODE_SEGMENTS} selected={mode} onSelect={onMode} />
-        <EmptyShelf
-          iconName="library-outline"
-          title="No owned books yet"
-          message="Scan an ISBN onto Owned to fill this catalog."
-          style={styles.empty}
-        />
+        {/* Scrollable even when empty, so it can be pulled down to sync. */}
+        <ScrollView refreshControl={refreshControl} showsVerticalScrollIndicator={false}>
+          <EmptyShelf
+            iconName="library-outline"
+            title="No owned books yet"
+            message="Scan an ISBN onto Owned to fill this catalog."
+            style={styles.empty}
+          />
+        </ScrollView>
       </View>
     );
   }
@@ -69,6 +75,7 @@ export function OwnedCatalog({
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
         >
           {sections.map((section, index) => (
             <View
