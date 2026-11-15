@@ -216,12 +216,14 @@ flowchart LR
 
 - **Sign in:** `AccountModel` → `SignInUseCase` (checks the email and password with `Credentials` first) → `Accounts` (Supabase Auth). Then `SyncLibraryUseCase.signedIn()` downloads the account's books, moves any books kept on this phone into the account (a book in both adds its copies), and uploads the result.
 - **After every change:** the library model asks `AccountModel.sync()`, which uploads what changed.
-- **Auto sync:** `SupabaseLibraryBackup.watch()` listens through Supabase Realtime. When another phone changes your library, this phone syncs and the shelves reload without a tap. It also syncs when the app comes back on screen.
+- **Only what changed (ADR-013):** the first sync of an account on a phone compares the whole library. After that, the phone remembers a *cursor*: the server's stamp (`synced_at`) on the newest row it has seen. Next time it asks only for rows stamped after that, and sends only the books it marked **unsent** (saved or deleted here since they were last sent). The server stamps rows with its own clock, because a phone's clock can be wrong, and it refuses an upload that is older than what it already has.
+- **Auto sync:** `SupabaseLibraryBackup.watch()` listens through Supabase Realtime. When another phone changes your library, this phone syncs and the shelves reload without a tap. `LiveChanges` keeps that connection alive: if it drops (the phone slept) or is refused (it joined before sign-in finished), it reopens it, and every time it's live again it syncs once to catch up on anything missed. It also syncs when the app comes back on screen.
+- **Pull to refresh:** pull To be read, Owned or Wanted down to sync now (`LibraryAppModel.refresh()`, the `PullToSync` spinner).
 - **Offline:** the phone keeps working; the sync waits ("Saved on this phone. It will sync when you're back online.") and catches up next time.
 - **Signed out:** the shelves are empty and Scan is off; signing in shows your books again.
 - **Privacy:** the table has row level security, so a signed-in account can only read and write rows with its own id. The app ships only the public (publishable) key.
 
-**Known issue (outstanding):** a delete made in the browser reached the other device only after tapping **Sync now**.
+**Known issue, now addressed (ADR-013):** a delete made in the browser reached the other device only after tapping **Sync now**. The likely cause was a Realtime connection that had dropped or been refused without the app noticing; `LiveChanges` now reopens it and catches up. This still needs a check on two phones.
 
 ---
 
