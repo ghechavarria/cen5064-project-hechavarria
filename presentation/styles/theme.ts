@@ -18,6 +18,9 @@ export const theme = {
   glowSoft: "rgba(126,240,224,0.45)", // the halo behind large titles
   selected: "rgba(126,240,224,0.16)", // the pill behind a chosen tab or segment
   border: "rgba(126,240,224,0.35)", // quiet outlines
+  bloom: "#CDA8FF", // the forest's purple mushrooms: library stats (7.9:1 on the panel)
+  bloomSoft: "rgba(176,124,240,0.18)", // the fill behind a stat
+  bloomBorder: "rgba(190,146,250,0.45)", // a stat's outline
   danger: "#B5473A", // filled destructive button (light text on it passes contrast)
   dangerInk: "#F2917F", // destructive text and outlines on dark surfaces
   overlay: "rgba(5,14,28,0.78)",

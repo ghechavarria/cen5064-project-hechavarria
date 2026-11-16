@@ -14,11 +14,11 @@ export const styles = StyleSheet.create({
     gap: space.xs,
     paddingVertical: space.md,
     borderRadius: radius.md,
-    backgroundColor: theme.selected,
+    backgroundColor: theme.bloomSoft,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.border,
+    borderColor: theme.bloomBorder,
   },
-  statCount: { ...text.display, ...text.tabular, fontSize: font.heading, color: theme.glow },
+  statCount: { ...text.display, ...text.tabular, fontSize: font.heading, color: theme.bloom },
   statLabel: { ...text.ui, fontSize: font.caption, color: theme.muted },
   // Details as a two-column list, like a book's facts: label left, value right.
   detail: {
