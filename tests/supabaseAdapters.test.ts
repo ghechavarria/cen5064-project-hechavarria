@@ -22,7 +22,8 @@ import { Book, Gift, ReadingStatus, Shelf } from "../domain";
 import { AccountError, BookVersion, SyncUnavailableError } from "../service/ports";
 import { FOX } from "./fixtures";
 
-const GRACE: SupabaseUser = { id: "user-1", email: "grace@example.com" };
+const GRACE: SupabaseUser = { id: "user-1", email: "grace@example.com", created_at: "2026-11-07T05:39:12.123456Z" };
+const GRACE_ACCOUNT = { id: "user-1", email: "grace@example.com", createdAt: Date.UTC(2026, 10, 7, 5, 39, 12) };
 
 /** Supabase Auth with one registered user. Set `failure` to answer every call with that error. */
 class FakeAuth implements SupabaseAuth {
@@ -82,8 +83,8 @@ describe("SupabaseAccounts", () => {
     const accounts = new SupabaseAccounts(auth);
     expect(accounts.configured).toBe(true);
     expect(await accounts.current()).toBeNull();
-    expect(await accounts.signUp("grace@example.com", "correct horse")).toEqual({ id: "user-1", email: "grace@example.com" });
-    expect(await accounts.current()).toEqual({ id: "user-1", email: "grace@example.com" });
+    expect(await accounts.signUp("grace@example.com", "correct horse")).toEqual(GRACE_ACCOUNT);
+    expect(await accounts.current()).toEqual(GRACE_ACCOUNT);
     await accounts.signOut();
     expect(await accounts.current()).toBeNull();
   });

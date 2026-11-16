@@ -13,6 +13,7 @@ import { AccountUseCases, UseCases } from "../service";
 import { Accounts, LibraryBackup } from "../service/ports";
 import { AccountModel } from "../presentation/model/accountModel";
 import { LibraryAppModel } from "../presentation/model/libraryAppModel";
+import { Labels } from "../presentation/model/labels";
 import { LibraryController } from "../presentation/model/libraryController";
 import { FOX, FakeAccounts, FakeBackup, FakeDevices, foxLookup } from "./fixtures";
 
@@ -58,6 +59,25 @@ describe("Account tab", () => {
     expect(app.hint).toBe("Your library is up to date.");
     expect(titles(app)).toEqual(["Fantastic Mr. Fox"]);
     expect((await store.loadLibrary("local")).books).toHaveLength(0);
+  });
+
+  test("signed in, the Account tab shows the email, member since, the library and when it last synced", async () => {
+    const { store, account, app } = await phone();
+    expect(app.accountDetails).toEqual([]);
+    await store.save("local", owned());
+    await store.save("local", new Book({ ...MATILDA, shelf: Shelf.WANTED }));
+    await signIn(account);
+    await settle();
+    const details = Object.fromEntries(app.accountDetails.map((detail) => [detail.label, detail.value]));
+    expect(details).toMatchObject({
+      Email: "grace@example.com",
+      Library: "1 owned book (0 read), 1 wanted",
+    });
+    expect(details["Member since"]).toBe(Labels.day(FakeAccounts.CREATED));
+    expect(details["Last synced"]).toMatch(/^Today at /);
+
+    await account.signOut();
+    expect(app.accountDetails).toEqual([]);
   });
 
   test("opening the app signed out starts on the Account tab; signed in, it starts on To be read", async () => {

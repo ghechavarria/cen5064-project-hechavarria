@@ -98,8 +98,11 @@ export interface LibraryBackup {
   watch(ownerId: string, onChange: () => void): () => void;
 }
 
-/** A signed-in account; its id is the ownerId of its books. */
-export type Account = { id: string; email: string };
+/**
+ * A signed-in account; its id is the ownerId of its books. `createdAt` is when
+ * the account was created (milliseconds since 1970), or null if not known.
+ */
+export type Account = { id: string; email: string; createdAt: number | null };
 
 /** Sign-up and sign-in. `configured` is false when no account service is set up. */
 export interface Accounts {

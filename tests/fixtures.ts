@@ -104,6 +104,7 @@ class FakeFeedback implements Feedback {
  * wait for an email; `expire()` ends the session as if from outside the app.
  */
 export class FakeAccounts implements Accounts {
+  static readonly CREATED = Date.UTC(2026, 10, 7, 5, 39, 12); // when the fake account was created
   readonly configured = true;
   readonly calls: string[] = [];
   confirmEmail = false;
@@ -115,14 +116,14 @@ export class FakeAccounts implements Accounts {
   }
   async signUp(email: string, password: string): Promise<Account | null> {
     this.calls.push(`signUp ${email} ${password}`);
-    return this.confirmEmail ? null : this.become({ id: "user-1", email });
+    return this.confirmEmail ? null : this.become({ id: "user-1", email, createdAt: FakeAccounts.CREATED });
   }
   async signIn(email: string, password: string): Promise<Account> {
     this.calls.push(`signIn ${email} ${password}`);
     if (password !== "correct horse") {
       throw new AccountError("That email and password don't match an account.");
     }
-    return this.become({ id: "user-1", email });
+    return this.become({ id: "user-1", email, createdAt: FakeAccounts.CREATED });
   }
   async signOut(): Promise<void> {
     this.calls.push("signOut");

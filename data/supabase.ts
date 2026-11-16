@@ -17,7 +17,7 @@ import { ServerClock } from "./serverClock";
 export type SupabaseError = { message: string; code?: string; status?: number };
 
 /** The part of a Supabase user the app reads. */
-export type SupabaseUser = { id: string; email?: string };
+export type SupabaseUser = { id: string; email?: string; created_at?: string };
 type SessionShape = { user: SupabaseUser };
 type Answer<T> = Promise<{ data: T; error: SupabaseError | null }>;
 

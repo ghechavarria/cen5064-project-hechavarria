@@ -18,7 +18,7 @@ function accountUseCases() {
 describe("Account use cases", () => {
   test("sign up, sign in and sign out pass the cleaned-up email to the account service", async () => {
     const { accounts, useCases } = accountUseCases();
-    expect(await useCases.signUp.execute(" Grace@Example.com ", "correct horse")).toEqual({ id: "user-1", email: "grace@example.com" });
+    expect(await useCases.signUp.execute(" Grace@Example.com ", "correct horse")).toEqual({ id: "user-1", email: "grace@example.com", createdAt: FakeAccounts.CREATED });
     await useCases.signOut.execute();
     await useCases.signIn.execute("GRACE@example.com", "correct horse");
     expect(accounts.calls).toEqual(["signUp grace@example.com correct horse", "signOut", "signIn grace@example.com correct horse"]);

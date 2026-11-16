@@ -161,6 +161,31 @@ export class LibraryAppModel extends Observable<AppState> {
     return !busy && prompt === null && !this.locked;
   }
 
+  /** The signed-in account's basic facts, for the Account tab; empty when signed out. */
+  get accountDetails(): { label: string; value: string }[] {
+    const state = this.account?.getState();
+    if (!state?.account) {
+      return [];
+    }
+    const { view } = this.getState();
+    const read = view.toBeRead(ReadingStatus.READ).length;
+    const synced =
+      state.sync === "syncing"
+        ? "Syncing now"
+        : state.lastSynced === null
+          ? "Not yet"
+          : Labels.moment(state.lastSynced, Date.now());
+    return [
+      { label: "Email", value: state.account.email },
+      { label: "Member since", value: state.account.createdAt === null ? "" : Labels.day(state.account.createdAt) },
+      {
+        label: "Library",
+        value: `${Labels.count(view.owned.length, "owned book")} (${read} read), ${view.wanted.length} wanted`,
+      },
+      { label: "Last synced", value: synced },
+    ].filter((detail) => detail.value !== "");
+  }
+
   /** Pulling a book list down syncs it: only when someone is signed in to sync with. */
   get canRefresh(): boolean {
     return this.account !== null && !this.locked;

@@ -63,4 +63,17 @@ export class Labels {
   static count(count: number, singular: string, plural = `${singular}s`): string {
     return `${count} ${count === 1 ? singular : plural}`;
   }
+
+  // A calendar day in the device's language: "November 7, 2026".
+  static day(time: number): string {
+    return new Date(time).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  // When something happened, as close as is useful: "Today at 7:14 PM", or "Nov 7 at 7:14 PM".
+  static moment(time: number, now: number): string {
+    const at = new Date(time);
+    const clock = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const sameDay = at.toDateString() === new Date(now).toDateString();
+    return `${sameDay ? "Today" : at.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at ${clock}`;
+  }
 }
