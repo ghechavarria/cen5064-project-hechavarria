@@ -214,6 +214,9 @@ export class LibraryAppModel extends Observable<AppState> {
     this.setState({ ready: true, view: await this.viewOf(controller), busy: true });
     try {
       if (!this.locked) {
+        // Sync first: a book deleted on another device while this one was
+        // closed must not be re-saved (and so revived) by the backfill (ADR-013).
+        await this.account?.sync();
         await controller.fillMissingFacts();
         this.setState({ view: await this.viewOf(controller) });
       }
@@ -222,7 +225,7 @@ export class LibraryAppModel extends Observable<AppState> {
     } finally {
       this.setState({ busy: false });
     }
-    void this.account?.sync();
+    void this.account?.sync(); // sends whatever the backfill filled in
   }
 
   dispose(): void {

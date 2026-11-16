@@ -11,6 +11,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { LiveChanges } from "./liveChanges";
+import { ServerClock } from "./serverClock";
 
 /** An error as Supabase returns it: a message, and usually a code or HTTP status. */
 export type SupabaseError = { message: string; code?: string; status?: number };
@@ -139,9 +140,11 @@ export class SupabaseConnection {
 
   // The session is kept in AsyncStorage so a signed-in phone stays signed in.
   // Expo Go cannot receive sign-in links, so nothing is read from a URL.
-  static open(url: string, publicKey: string): SupabaseConnection {
+  // Every answer's Date header sets `clock` to the server's time (ADR-013).
+  static open(url: string, publicKey: string, clock: ServerClock): SupabaseConnection {
     const client = createClient(url, publicKey, {
       auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
+      global: { fetch: clock.watching((input, init) => fetch(input, init)) },
     });
     return new SupabaseConnection(client.auth, new SupabaseLibraryBooks(client));
   }

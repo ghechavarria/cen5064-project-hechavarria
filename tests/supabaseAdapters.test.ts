@@ -15,6 +15,7 @@ import type {
   SupabaseUser,
 } from "../data/supabase";
 import { ChannelEvents, LiveChanges, OpenChannel } from "../data/liveChanges";
+import { ServerClock } from "../data/serverClock";
 import { SupabaseAccounts, UnconfiguredAccounts } from "../data/supabaseAccounts";
 import { SupabaseLibraryBackup } from "../data/supabaseBackup";
 import { Book, Gift, ReadingStatus, Shelf } from "../domain";
@@ -353,5 +354,48 @@ describe("LiveChanges (auto sync stays connected)", () => {
     jest.advanceTimersByTime(60_000);
     expect(opened).toHaveLength(2);
     expect(opened[1].closed).toBe(true);
+  });
+});
+
+describe("ServerClock (a wrong device clock can't lose a change)", () => {
+  test("a device 46 s slow stamps its changes with the server's time once the server has answered", () => {
+    let device = Date.UTC(2026, 10, 16, 0, 13, 57, 200); // the server says 00:14:43
+    const clock = new ServerClock(() => device);
+    expect(clock.now()).toBe(device); // before any answer: the device's own time
+    clock.heard("Mon, 16 Nov 2026 00:14:43 GMT");
+    expect(clock.now()).toBe(Date.UTC(2026, 10, 16, 0, 14, 43, 500));
+    device += 1_000;
+    expect(clock.now()).toBe(Date.UTC(2026, 10, 16, 0, 14, 44, 500));
+  });
+
+  test("a correct clock is left alone: the header's whole seconds don't make it jitter", () => {
+    const device = Date.UTC(2026, 10, 16, 0, 14, 43, 900);
+    const clock = new ServerClock(() => device);
+    clock.heard("Mon, 16 Nov 2026 00:14:43 GMT");
+    clock.heard("Mon, 16 Nov 2026 00:14:44 GMT");
+    expect(clock.now()).toBe(device);
+  });
+
+  test("stamps never go backwards, even when the offset shrinks; a missing or odd header is ignored", () => {
+    let device = Date.UTC(2026, 10, 16, 0, 0, 10);
+    const clock = new ServerClock(() => device);
+    clock.heard("Mon, 16 Nov 2026 00:01:00 GMT"); // 50 s ahead
+    const first = clock.now();
+    clock.heard("Mon, 16 Nov 2026 00:00:10 GMT"); // the device was right after all
+    expect(clock.now()).toBe(first + 1);
+    device += 60_000;
+    expect(clock.now()).toBe(device + 500);
+    clock.heard(null);
+    clock.heard("16 Nov 2026");
+    expect(clock.now()).toBe(device + 501);
+  });
+
+  test("the fetch it wraps reports each answer's Date header and returns the answer unchanged", async () => {
+    const device = Date.UTC(2026, 10, 16, 0, 0, 0);
+    const clock = new ServerClock(() => device);
+    const answer = new Response("[]", { headers: { date: "Mon, 16 Nov 2026 00:00:30 GMT" } });
+    const fetcher = clock.watching(async () => answer);
+    expect(await fetcher("https://example.supabase.co/rest/v1/library_books")).toBe(answer);
+    expect(clock.now()).toBe(device + 30_500);
   });
 });

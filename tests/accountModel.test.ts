@@ -8,7 +8,7 @@
 import { MemoryBookRepository } from "../data/bookRepository";
 import { UnconfiguredAccounts } from "../data/supabaseAccounts";
 import { UnconfiguredLibraryBackup } from "../data/supabaseBackup";
-import { Book, Purchase, ReadingStatus, Shelf } from "../domain";
+import { Book, BookFormat, Purchase, ReadingStatus, Shelf } from "../domain";
 import { AccountUseCases, UseCases } from "../service";
 import { Accounts, LibraryBackup } from "../service/ports";
 import { AccountModel } from "../presentation/model/accountModel";
@@ -22,8 +22,12 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const titles = (app: LibraryAppModel) => app.getState().view.owned.map((book) => book.title).sort();
 
 /** One phone running the app: its store, the account model and the library model. */
-async function phone(accounts: Accounts = new FakeAccounts(), backup: LibraryBackup = new FakeBackup()) {
-  const store = new MemoryBookRepository();
+async function phone(
+  accounts: Accounts = new FakeAccounts(),
+  backup: LibraryBackup = new FakeBackup(),
+  clock: () => number = Date.now,
+) {
+  const store = new MemoryBookRepository(clock);
   const account = new AccountModel(async () => new AccountUseCases(accounts, store, store, backup));
   const app = new LibraryAppModel(
     async () => new LibraryController(new UseCases(store, foxLookup()), "local"),
@@ -181,6 +185,38 @@ describe("Account tab", () => {
     await account.sync();
     expect(account.getState().sync).toBe("synced");
     expect(await backup.stored("user-1")).toHaveLength(1);
+  });
+
+  test("opening the app syncs before filling in missing facts, so it can't revive a book deleted elsewhere", async () => {
+    const backup = new FakeBackup();
+    const accounts = new FakeAccounts();
+    // One clock that moves on every reading, so each change is newer than the last.
+    let now = 1000;
+    const clock = () => (now += 10);
+    const phoneA = await phone(accounts, backup, clock);
+    const phoneB = await phone(accounts, backup, clock);
+    await signIn(phoneA.account);
+    await signIn(phoneB.account);
+    // A book still missing its series and binding: the backfill would fill them in and save it.
+    await phoneA.store.save("user-1", new Book({ ...FOX, series: "", format: BookFormat.UNKNOWN, shelf: Shelf.OWNED, acquisition: new Purchase() }));
+    await phoneA.account.sync();
+    await phoneB.account.sync();
+    phoneB.app.dispose(); // phone B is closed
+
+    await phoneA.store.delete("user-1", FOX.isbn);
+    await phoneA.account.sync();
+
+    // Phone B opens again on the same store: it must hear about the delete first.
+    const reopened = new LibraryAppModel(
+      async () => new LibraryController(new UseCases(phoneB.store, foxLookup()), "local"),
+      new FakeDevices(),
+      new AccountModel(async () => new AccountUseCases(accounts, phoneB.store, phoneB.store, backup)),
+    );
+    await reopened.start();
+    await settle();
+    expect(titles(reopened)).toEqual([]);
+    expect((await backup.stored("user-1")).map((version) => version.deletedAt)).not.toContain(null);
+    reopened.dispose();
   });
 
   test("pull to refresh: a book list pulled down syncs and shows books from another phone", async () => {
