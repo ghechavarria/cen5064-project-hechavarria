@@ -1,8 +1,8 @@
 /**
  * Component: AccountPanel — the Account tab (core feature 4). Signed out, it
  * shows the form AccountModel is on (sign in, or create an account); signed in,
- * it shows the account's basic details (email, member since, library, last
- * synced) with Sync now and Sign out. It only renders the models' state and
+ * it shows the library at a glance (a count per shelf and reading list), the
+ * account's details (email, member since, last synced), Sync now and Sign out. It only renders the models' state and
  * forwards taps to them.
  */
 import { Text, View } from "react-native";
@@ -13,15 +13,18 @@ import { Tappable } from "./Tappable";
 import { TextField } from "./TextField";
 
 type Detail = { label: string; value: string };
+type Stat = { label: string; count: number };
 
 export function AccountPanel({
   model,
   state,
   details,
+  stats,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
+  stats: Stat[];
 }) {
   if (!state.configured) {
     return (
@@ -32,15 +35,34 @@ export function AccountPanel({
     );
   }
   return state.account ? (
-    <SignedIn model={model} state={state} details={details} />
+    <SignedIn model={model} state={state} details={details} stats={stats} />
   ) : (
     <SignedOut model={model} state={state} />
   );
 }
 
-function SignedIn({ model, state, details }: { model: AccountModel; state: AccountState; details: Detail[] }) {
+function SignedIn({
+  model,
+  state,
+  details,
+  stats,
+}: {
+  model: AccountModel;
+  state: AccountState;
+  details: Detail[];
+  stats: Stat[];
+}) {
   return (
     <View style={styles.panel}>
+      <Text style={styles.title}>Your library</Text>
+      <View style={styles.stats}>
+        {stats.map((stat) => (
+          <View key={stat.label} style={styles.stat} accessible accessibilityLabel={`${stat.label}: ${stat.count}`}>
+            <Text style={styles.statCount}>{stat.count}</Text>
+            <Text style={styles.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
       <Text style={styles.title}>Your account</Text>
       <View>
         {details.map((detail) => (

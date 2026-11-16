@@ -167,8 +167,6 @@ export class LibraryAppModel extends Observable<AppState> {
     if (!state?.account) {
       return [];
     }
-    const { view } = this.getState();
-    const read = view.toBeRead(ReadingStatus.READ).length;
     const synced =
       state.sync === "syncing"
         ? "Syncing now"
@@ -178,12 +176,19 @@ export class LibraryAppModel extends Observable<AppState> {
     return [
       { label: "Email", value: state.account.email },
       { label: "Member since", value: state.account.createdAt === null ? "" : Labels.day(state.account.createdAt) },
-      {
-        label: "Library",
-        value: `${Labels.count(view.owned.length, "owned book")} (${read} read), ${view.wanted.length} wanted`,
-      },
       { label: "Last synced", value: synced },
     ].filter((detail) => detail.value !== "");
+  }
+
+  /** The library at a glance, for the Account tab: how many titles on each shelf and reading list. */
+  get libraryStats(): { label: string; count: number }[] {
+    const { view } = this.getState();
+    return [
+      { label: "Owned", count: view.owned.length },
+      { label: "To read", count: view.toBeRead(ReadingStatus.UNREAD).length },
+      { label: "Read", count: view.toBeRead(ReadingStatus.READ).length },
+      { label: "Wanted", count: view.wanted.length },
+    ];
   }
 
   /** Pulling a book list down syncs it: only when someone is signed in to sync with. */

@@ -1,11 +1,25 @@
 /** Styles for AccountPanel (the sign-in forms, and the signed-in card). */
 import { StyleSheet } from "react-native";
-import { font, panelSurface, space, text, theme } from "./theme";
+import { font, panelSurface, radius, space, text, theme } from "./theme";
 
 export const styles = StyleSheet.create({
   panel: { ...panelSurface, padding: space.lg, gap: space.md },
   title: { ...text.title, fontSize: font.title, color: theme.ink },
   body: text.muted,
+  // The library at a glance: four tiles in a row, a big count over a small label.
+  stats: { flexDirection: "row", gap: space.sm },
+  stat: {
+    flex: 1,
+    alignItems: "center",
+    gap: space.xs,
+    paddingVertical: space.md,
+    borderRadius: radius.md,
+    backgroundColor: theme.selected,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.border,
+  },
+  statCount: { ...text.display, ...text.tabular, fontSize: font.heading, color: theme.glow },
+  statLabel: { ...text.ui, fontSize: font.caption, color: theme.muted },
   // Details as a two-column list, like a book's facts: label left, value right.
   detail: {
     flexDirection: "row",

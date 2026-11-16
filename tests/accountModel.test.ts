@@ -61,7 +61,7 @@ describe("Account tab", () => {
     expect((await store.loadLibrary("local")).books).toHaveLength(0);
   });
 
-  test("signed in, the Account tab shows the email, member since, the library and when it last synced", async () => {
+  test("signed in, the Account tab shows the library's counts, the email, member since and when it last synced", async () => {
     const { store, account, app } = await phone();
     expect(app.accountDetails).toEqual([]);
     await store.save("local", owned());
@@ -69,10 +69,13 @@ describe("Account tab", () => {
     await signIn(account);
     await settle();
     const details = Object.fromEntries(app.accountDetails.map((detail) => [detail.label, detail.value]));
-    expect(details).toMatchObject({
-      Email: "grace@example.com",
-      Library: "1 owned book (0 read), 1 wanted",
-    });
+    expect(details).toMatchObject({ Email: "grace@example.com" });
+    expect(app.libraryStats).toEqual([
+      { label: "Owned", count: 1 },
+      { label: "To read", count: 1 },
+      { label: "Read", count: 0 },
+      { label: "Wanted", count: 1 },
+    ]);
     expect(details["Member since"]).toBe(Labels.day(FakeAccounts.CREATED));
     expect(details["Last synced"]).toMatch(/^Today at /);
 
