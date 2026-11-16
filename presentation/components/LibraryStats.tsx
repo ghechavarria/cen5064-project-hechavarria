@@ -1,15 +1,16 @@
 /**
  * Component: LibraryStats — the library at a glance on the Account tab: a tile
- * per shelf and reading list (its menu icon, a glowing count, a label), and a
- * reading-progress bar for the owned books, purple fading into pink.
+ * per shelf and reading list (its menu icon, a glowing count, a label), each in
+ * its own color from the forest, and a reading-progress bar for the owned
+ * books, purple fading into pink.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ComponentProps } from "react";
 import { Text, View } from "react-native";
 import { LibraryStat, ReadingProgress } from "../model/libraryAppModel";
-import { bloomFade, styles } from "../styles/libraryStats.styles";
-import { icon, theme } from "../styles/theme";
+import { bloomFade, statTones, styles } from "../styles/libraryStats.styles";
+import { icon } from "../styles/theme";
 
 // Each count wears the icon its tab uses in the menu bar (Read: the leaf on TBR's Read switch).
 const ICONS: Record<LibraryStat["key"], ComponentProps<typeof Ionicons>["name"]> = {
@@ -24,13 +25,22 @@ export function LibraryStats({ stats, progress }: { stats: LibraryStat[]; progre
   return (
     <View style={styles.wrap}>
       <View style={styles.tiles}>
-        {stats.map((stat) => (
-          <View key={stat.key} style={styles.tile} accessible accessibilityLabel={`${stat.label}: ${stat.count}`}>
-            <Ionicons name={ICONS[stat.key]} size={icon.small} color={theme.bloomBorder} />
-            <Text style={styles.count}>{stat.count}</Text>
-            <Text style={styles.label}>{stat.label}</Text>
-          </View>
-        ))}
+        {stats.map((stat) => {
+          const tone = statTones[stat.key];
+          return (
+            <LinearGradient
+              key={stat.key}
+              colors={tone.glass}
+              style={[styles.tile, { borderColor: tone.edge }]}
+              accessible
+              accessibilityLabel={`${stat.label}: ${stat.count}`}
+            >
+              <Ionicons name={ICONS[stat.key]} size={icon.small} color={tone.color} />
+              <Text style={[styles.count, { color: tone.color, textShadowColor: tone.glow }]}>{stat.count}</Text>
+              <Text style={styles.label}>{stat.label}</Text>
+            </LinearGradient>
+          );
+        })}
       </View>
       <View
         accessible
