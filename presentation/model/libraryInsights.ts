@@ -12,7 +12,7 @@ import { Acquisition, Book, ReadingStatus } from "../../domain";
 import { Labels } from "./labels";
 import { LibraryView } from "./libraryController";
 
-export type Insights = {
+type Insights = {
   pages: { read: number; total: number };
   genres: string[];
   gifts: { count: number; topGiver: string | null };
