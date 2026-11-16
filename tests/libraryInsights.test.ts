@@ -24,6 +24,13 @@ describe("Labels.subjectList", () => {
   });
 });
 
+test("a book's details end with the day it was added (none before it is first saved)", () => {
+  const added = Date.UTC(2026, 10, 15, 17);
+  const facts = Labels.facts(book("1", { addedAt: added }));
+  expect(facts[facts.length - 1]).toEqual({ label: "Added", value: Labels.day(added) });
+  expect(Labels.facts(book("2")).map((fact) => fact.label)).not.toContain("Added");
+});
+
 describe("LibraryInsights", () => {
   const view = new LibraryView(
     new PersonalLibrary([

@@ -48,6 +48,7 @@ export class Labels {
       { label: "ISBN", value: book.isbn },
       { label: "Copies", value: String(book.copyCount) },
       { label: "Acquired", value: book.acquisition?.describe() ?? "" },
+      { label: "Added", value: book.addedAt === null ? "" : Labels.day(book.addedAt) },
     ].filter((fact) => fact.value.trim() !== "");
   }
 
