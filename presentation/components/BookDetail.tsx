@@ -10,6 +10,7 @@ import { icon } from "../styles/theme";
 import { BookCover } from "./BookCover";
 import { Button } from "./Button";
 import { CoverBackdrop } from "./CoverBackdrop";
+import { Tappable } from "./Tappable";
 
 export function BookDetail({
   book,
@@ -18,6 +19,7 @@ export function BookDetail({
   onMoveToOwned,
   onMoveToWanted,
   onDelete,
+  onEditAcquisition,
 }: {
   book: Book;
   onToggleReading: () => void;
@@ -25,6 +27,7 @@ export function BookDetail({
   onMoveToOwned: () => void;
   onMoveToWanted: () => void;
   onDelete: () => void;
+  onEditAcquisition: () => void;
 }) {
   const tags = [Labels.shelf(book.shelf), Labels.readingTitle(book.readingStatus), Labels.format(book.format)];
   return (
@@ -47,18 +50,35 @@ export function BookDetail({
 
         <View>
           <Text style={styles.label}>Details</Text>
-          {Labels.facts(book).map((fact) => (
-            <View key={fact.label} style={styles.fact}>
-              <Text style={styles.factLabel}>{fact.label}</Text>
-              <Text style={styles.factValue}>{fact.value}</Text>
-            </View>
-          ))}
+          {Labels.facts(book).map((fact) =>
+            fact.label === "Acquired" ? (
+              // How an Owned book was acquired can be corrected (a typo in the giver's name).
+              <Tappable
+                key={fact.label}
+                accessibilityRole="button"
+                accessibilityLabel={`Acquired: ${fact.value}. Edit`}
+                onPress={onEditAcquisition}
+                style={styles.fact}
+              >
+                <Text style={styles.factLabel}>{fact.label}</Text>
+                <View style={styles.editable}>
+                  <Text style={styles.factValue}>{fact.value}</Text>
+                  <Text style={styles.editLink}>Edit</Text>
+                </View>
+              </Tappable>
+            ) : (
+              <View key={fact.label} style={styles.fact}>
+                <Text style={styles.factLabel}>{fact.label}</Text>
+                <Text style={styles.factValue}>{fact.value}</Text>
+              </View>
+            ),
+          )}
         </View>
 
         <View>
           <Text style={styles.label}>About</Text>
           <Text style={styles.body}>{Labels.about(book)}</Text>
-          {book.subjects ? <Text style={styles.subjects}>{book.subjects}</Text> : null}
+          {Labels.subjects(book) ? <Text style={styles.subjects}>{Labels.subjects(book)}</Text> : null}
         </View>
 
         <View>

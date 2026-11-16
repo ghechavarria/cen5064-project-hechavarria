@@ -29,6 +29,7 @@ const BOOK_COLUMNS = [
   "format",
   "updated_at",
   "deleted_at",
+  "added_at",
 ] as const;
 
 // Columns added after the first release: [table, column, type + default].
@@ -54,6 +55,8 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
   // Rows from before incremental sync read 0: their owner has no cursor yet, so
   // the first sync compares the whole library anyway.
   ["books", "unsent", "INTEGER NOT NULL DEFAULT 0"],
+  // When the book was added; rows from before it read as Nov 7, 2026 (BookRowMapper).
+  ["books", "added_at", "INTEGER"],
 ];
 
 // Marker column for the current lookup format (edition-first + Google Books with
@@ -112,6 +115,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
         updated_at INTEGER NOT NULL DEFAULT 0,
         deleted_at INTEGER,
         unsent INTEGER NOT NULL DEFAULT 0,
+        added_at INTEGER,
         UNIQUE (owner_id, isbn)
       );`;
   }
@@ -385,6 +389,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
       row.format,
       row.updatedAt,
       row.deletedAt,
+      row.addedAt,
     ];
   }
 
@@ -411,6 +416,7 @@ export class SqliteBookRepository implements BookRepository, IsbnCache, SyncStor
       format: row.format as BookFormat | undefined,
       updatedAt: row.updated_at as number | undefined,
       deletedAt: row.deleted_at as number | null | undefined,
+      addedAt: row.added_at as number | null | undefined,
     });
   }
 }

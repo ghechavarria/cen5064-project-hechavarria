@@ -3,6 +3,7 @@
  * bootstrap.ts builds it with the real adapters; tests build it with memory /
  * fake adapters, so the wiring is written once.
  */
+import { ChangeAcquisitionUseCase } from "./changeAcquisition";
 import { ChangeCoverUseCase } from "./changeCover";
 import { DeleteBookUseCase } from "./deleteBook";
 import { FillMissingFactsUseCase } from "./fillMissingFacts";
@@ -22,6 +23,7 @@ export class UseCases {
   readonly removeBook: DeleteBookUseCase;
   readonly fillMissing: FillMissingFactsUseCase;
   readonly changeCover: ChangeCoverUseCase;
+  readonly changeAcquisition: ChangeAcquisitionUseCase;
 
   constructor(repository: BookRepository, isbnLookup: IsbnLookup) {
     this.loadLibrary = new LoadLibraryUseCase(repository);
@@ -32,5 +34,6 @@ export class UseCases {
     this.removeBook = new DeleteBookUseCase(repository);
     this.fillMissing = new FillMissingFactsUseCase(repository, isbnLookup);
     this.changeCover = new ChangeCoverUseCase(repository);
+    this.changeAcquisition = new ChangeAcquisitionUseCase(repository);
   }
 }

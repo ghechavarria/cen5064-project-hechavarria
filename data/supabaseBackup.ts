@@ -109,6 +109,7 @@ export class SupabaseLibraryBackup implements LibraryBackup {
       format: row.format as StoredRow["format"],
       updatedAt: row.updated_at,
       deletedAt: row.deleted_at,
+      addedAt: row.added_at,
     };
   }
 
@@ -133,6 +134,7 @@ export class SupabaseLibraryBackup implements LibraryBackup {
       format: row.format,
       updated_at: row.updatedAt,
       deleted_at: row.deletedAt,
+      added_at: row.addedAt,
     };
   }
 }

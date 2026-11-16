@@ -53,6 +53,7 @@ export type RemoteBookRow = {
   format: string;
   updated_at: number;
   deleted_at: number | null;
+  added_at: number | null;
 };
 
 /** A row as the database returns it: plus synced_at, the server's own stamp (ADR-013). */

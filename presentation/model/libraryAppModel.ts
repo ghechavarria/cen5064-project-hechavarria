@@ -20,6 +20,7 @@ import { CameraUnavailableError, CoverCamera } from "./coverCamera";
 import { DeviceFamily, Feedback } from "./devices";
 import { Labels } from "./labels";
 import { LibraryController, LibraryView } from "./libraryController";
+import { LibraryInsights } from "./libraryInsights";
 import { Observable } from "./observable";
 import { ScanDraft } from "./scanDraft";
 
@@ -53,6 +54,17 @@ export type LibraryStat = { key: "owned" | "toRead" | "read" | "wanted"; label: 
 
 /** How much of the owned shelf has been read: the counts, a headline, and a line of encouragement. */
 export type ReadingProgress = { read: number; owned: number; headline: string; note: string };
+
+/** The Account tab's highlights, worded for display (LibraryInsights works them out). */
+export type LibraryHighlights = {
+  pages: { text: string; share: number } | null; // null while no book has a page count
+  genres: string[];
+  gifts: string;
+  latest: { book: Book; added: string } | null;
+};
+
+/** Everything the Account tab shows about the library. */
+export type LibrarySummary = { stats: LibraryStat[]; progress: ReadingProgress; highlights: LibraryHighlights };
 
 export type AppState = {
   ready: boolean;
@@ -187,6 +199,30 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /** The library at a glance, for the Account tab: how many titles on each shelf and reading list. */
+  /** The Account tab's library section: counts, reading progress and highlights. */
+  get librarySummary(): LibrarySummary {
+    return { stats: this.libraryStats, progress: this.readingProgress, highlights: this.libraryHighlights };
+  }
+
+  get libraryHighlights(): LibraryHighlights {
+    const { pages, genres, gifts, latest } = LibraryInsights.of(this.getState().view);
+    const giftCount = Labels.count(gifts.count, "gift");
+    return {
+      pages:
+        pages.total === 0
+          ? null
+          : { text: `${pages.read.toLocaleString()} of ${pages.total.toLocaleString()}`, share: pages.read / pages.total },
+      genres,
+      gifts:
+        gifts.count === 0
+          ? "No gifts yet"
+          : gifts.topGiver === null
+            ? giftCount
+            : `${giftCount}, ${gifts.count === 1 ? "from" : "most from"} ${gifts.topGiver}`,
+      latest: latest ? { book: latest, added: latest.addedAt === null ? "" : `Added ${Labels.day(latest.addedAt)}` } : null,
+    };
+  }
+
   get libraryStats(): LibraryStat[] {
     const { view } = this.getState();
     return [
@@ -455,6 +491,23 @@ export class LibraryAppModel extends Observable<AppState> {
     } else {
       askReading();
     }
+  }
+
+  /** Correct how the open (Owned) book was acquired: the same popups as when it was added. */
+  editAcquisition(): void {
+    const book = this.selected;
+    if (!book || book.shelf !== Shelf.OWNED) {
+      return;
+    }
+    // The giver's name is filled in, ready to fix a typo.
+    this.setState({ giftName: book.giftedBy ?? "" });
+    this.askAcquisition("Purchased, or a gift? A gift keeps the giver's name.", (record) => {
+      void this.run(async (library) => {
+        const saved = await library.changeAcquisition(book.isbn, record);
+        this.flash(`Saved: ${saved.acquisition?.describe() ?? "updated"}.`);
+        this.setState({ giftName: "" });
+      });
+    });
   }
 
   toggleReading(): Promise<void> {

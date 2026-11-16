@@ -22,7 +22,11 @@ const FULL_BOOK = () =>
   });
 
 // Every field a Book exposes, for comparing a rebuilt book with the original.
-const fields = (book: Book) => BookRowMapper.toRow("any", book);
+// Every field of a book as stored, except the added date (a store stamps that on the first save).
+const fields = (book: Book) => {
+  const { addedAt: _added, ...rest } = BookRowMapper.toRow("any", book);
+  return rest;
+};
 
 // --- BookRowMapper ---
 
@@ -80,6 +84,7 @@ describe("BookRowMapper", () => {
       format: BookFormat.UNKNOWN,
       updatedAt: 0, // saved before sync: the oldest version
       deletedAt: null,
+      addedAt: BookRowMapper.EARLIEST_ADDED_AT, // saved before added dates: Nov 7, 2026
     });
   });
 
@@ -269,6 +274,19 @@ describe.each(localStores)("BookRepository contract: %s", (_name, open: () => Pr
     const books = (await repository.loadLibrary("local")).books;
     expect(books).toHaveLength(1);
     expect(books[0].copyCount).toBe(3);
+  });
+
+  test("a new book is stamped with when it was added; saving it again keeps that date", async () => {
+    let now = 5_000;
+    const repository = await (open as Opener)(() => now);
+    await repository.save("local", FULL_BOOK());
+    const [saved] = (await repository.loadLibrary("local")).books;
+    expect(saved.addedAt).toBe(5_000);
+
+    now = 9_000;
+    saved.addCopy();
+    await repository.save("local", saved); // a change, not a new addition
+    expect((await repository.loadLibrary("local")).books[0].addedAt).toBe(5_000);
   });
 
   test("keeps each owner's books apart, even for the same ISBN", async () => {

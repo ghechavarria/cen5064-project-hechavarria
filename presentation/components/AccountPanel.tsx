@@ -7,9 +7,11 @@
  */
 import { Text, View } from "react-native";
 import { AccountForm, AccountModel, AccountState } from "../model/accountModel";
-import { LibraryStat, ReadingProgress } from "../model/libraryAppModel";
+import { Book } from "../../domain";
+import { LibrarySummary } from "../model/libraryAppModel";
 import { styles } from "../styles/accountPanel.styles";
 import { Button } from "./Button";
+import { LibraryHighlights } from "./LibraryHighlights";
 import { LibraryStats } from "./LibraryStats";
 import { Tappable } from "./Tappable";
 import { TextField } from "./TextField";
@@ -20,14 +22,14 @@ export function AccountPanel({
   model,
   state,
   details,
-  stats,
-  progress,
+  library,
+  onOpenBook,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
-  stats: LibraryStat[];
-  progress: ReadingProgress;
+  library: LibrarySummary;
+  onOpenBook: (book: Book) => void;
 }) {
   if (!state.configured) {
     return (
@@ -38,7 +40,7 @@ export function AccountPanel({
     );
   }
   return state.account ? (
-    <SignedIn model={model} state={state} details={details} stats={stats} progress={progress} />
+    <SignedIn model={model} state={state} details={details} library={library} onOpenBook={onOpenBook} />
   ) : (
     <SignedOut model={model} state={state} />
   );
@@ -48,19 +50,20 @@ function SignedIn({
   model,
   state,
   details,
-  stats,
-  progress,
+  library,
+  onOpenBook,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
-  stats: LibraryStat[];
-  progress: ReadingProgress;
+  library: LibrarySummary;
+  onOpenBook: (book: Book) => void;
 }) {
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Your library</Text>
-      <LibraryStats stats={stats} progress={progress} />
+      <LibraryStats stats={library.stats} progress={library.progress} />
+      <LibraryHighlights highlights={library.highlights} onOpenBook={onOpenBook} />
       <Text style={styles.title}>Your account</Text>
       <View>
         {details.map((detail) => (

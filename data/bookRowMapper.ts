@@ -30,6 +30,10 @@ export type StoredRow = Partial<BookRow> &
   };
 
 export class BookRowMapper {
+  // The added date for books saved before added dates existed: Nov 7, 2026 at
+  // noon Eastern Standard Time (17:00 UTC), when accounts and sync began.
+  static readonly EARLIEST_ADDED_AT = Date.UTC(2026, 10, 7, 17);
+
   // Row → Book. Rebuilds the right AcquisitionRecord subclass from its columns.
   static toBook(row: BookRow): Book {
     return new Book({ ...row, acquisition: AcquisitionRecord.restore(row.acquiredAs, row.giftedBy) });
@@ -46,10 +50,12 @@ export class BookRowMapper {
   }
 
   // Book → row, ready to store, stamped with when it changed (and was deleted, if it was).
+  // A book not saved before is added `updatedAt`, when this save happens.
   static toRow(ownerId: string, book: Book, updatedAt = 0, deletedAt: number | null = null): BookRow {
     return {
       updatedAt,
       deletedAt,
+      addedAt: book.addedAt ?? (updatedAt > 0 ? updatedAt : null),
       ownerId,
       isbn: book.isbn,
       title: book.title,
@@ -109,6 +115,8 @@ export class BookRowMapper {
       // Rows from before sync have no timestamps: they count as the oldest version.
       updatedAt: BookRowMapper.time(row.updatedAt) ?? 0,
       deletedAt: BookRowMapper.time(row.deletedAt),
+      // Rows from before added dates count as added on Nov 7, 2026.
+      addedAt: BookRowMapper.time(row.addedAt) ?? BookRowMapper.EARLIEST_ADDED_AT,
     };
   }
 

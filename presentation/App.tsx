@@ -198,7 +198,15 @@ function LibraryScreen() {
                   onScan={() => model.selectTab("scan")}
                 />
               ) : null}
-              {page === "account" ? <AccountPanel model={account} state={accountState} details={model.accountDetails} stats={model.libraryStats} progress={model.readingProgress} /> : null}
+              {page === "account" ? (
+                <AccountPanel
+                  model={account}
+                  state={accountState}
+                  details={model.accountDetails}
+                  library={model.librarySummary}
+                  onOpenBook={openBook}
+                />
+              ) : null}
               {page === "detail" && selected ? (
                 <BookDetail
                   book={selected}
@@ -207,6 +215,7 @@ function LibraryScreen() {
                   onMoveToOwned={() => model.moveSelected(Shelf.OWNED)}
                   onMoveToWanted={() => model.moveSelected(Shelf.WANTED)}
                   onDelete={() => model.askDelete()}
+                  onEditAcquisition={() => model.editAcquisition()}
                 />
               ) : null}
             </ScrollView>

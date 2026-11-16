@@ -51,6 +51,27 @@ export class Labels {
     ].filter((fact) => fact.value.trim() !== "");
   }
 
+  // A book's subjects as readable topics: catalog tags like "serie:Once_Upon_a_Broken_Heart"
+  // are dropped (the series is shown above), underscores become spaces, repeats go.
+  static subjectList(subjects: string): string[] {
+    const seen = new Set<string>();
+    return subjects
+      .split(",")
+      .map((subject) => subject.replace(/_/g, " ").replace(/\s+/g, " ").trim())
+      .filter((subject) => {
+        const key = subject.toLowerCase();
+        if (subject === "" || subject.includes(":") || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  }
+
+  static subjects(book: Book): string {
+    return Labels.subjectList(book.subjects).join(", ");
+  }
+
   // The description, unless it's missing or an old "Source title: …" placeholder.
   static about(book: Book): string {
     const description = book.description.trim();

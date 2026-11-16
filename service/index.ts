@@ -5,6 +5,7 @@
 export { AccountError, BookSourceUnavailableError, SyncUnavailableError } from "./ports";
 export type { Account } from "./ports";
 export { AccountUseCase, AccountUseCases, SignInUseCase, SignOutUseCase, SignUpUseCase } from "./account";
+export { ChangeAcquisitionUseCase } from "./changeAcquisition";
 export { ChangeCoverUseCase } from "./changeCover";
 export { DeleteBookUseCase } from "./deleteBook";
 export { FillMissingFactsUseCase } from "./fillMissingFacts";
