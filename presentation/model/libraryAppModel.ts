@@ -59,7 +59,7 @@ export type ReadingProgress = { read: number; owned: number; headline: string; n
 export type LibraryHighlights = {
   pages: { text: string; share: number } | null; // null while no book has a page count
   genres: string[];
-  gifts: string;
+  gifts: { text: string; count: number };
   latest: { book: Book; added: string } | null;
 };
 
@@ -213,12 +213,15 @@ export class LibraryAppModel extends Observable<AppState> {
           ? null
           : { text: `${pages.read.toLocaleString()} of ${pages.total.toLocaleString()}`, share: pages.read / pages.total },
       genres,
-      gifts:
-        gifts.count === 0
-          ? "No gifts yet"
-          : gifts.topGiver === null
-            ? giftCount
-            : `${giftCount}, ${gifts.count === 1 ? "from" : "most from"} ${gifts.topGiver}`,
+      gifts: {
+        count: gifts.count,
+        text:
+          gifts.count === 0
+            ? "No gifts yet"
+            : gifts.topGiver === null
+              ? giftCount
+              : `${giftCount}, ${gifts.count === 1 ? "from" : "most from"} ${gifts.topGiver}`,
+      },
       latest: latest ? { book: latest, added: latest.addedAt === null ? "" : `Added ${Labels.day(latest.addedAt)}` } : null,
     };
   }
@@ -354,6 +357,12 @@ export class LibraryAppModel extends Observable<AppState> {
   showReading(reading: ReadingStatus): void {
     this.tickIfChanged(reading, this.getState().reading);
     this.setState({ reading });
+  }
+
+  /** Every gifted book: the Owned catalog, grouped by who gave them. */
+  showGifts(): void {
+    this.selectTab("owned");
+    this.setCatalogMode("gifts");
   }
 
   setCatalogMode(catalogMode: CatalogMode): void {

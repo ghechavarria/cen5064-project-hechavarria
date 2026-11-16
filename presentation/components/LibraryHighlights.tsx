@@ -17,9 +17,11 @@ import { Tappable } from "./Tappable";
 export function LibraryHighlights({
   highlights,
   onOpenBook,
+  onShowGifts,
 }: {
   highlights: Highlights;
   onOpenBook: (book: Book) => void;
+  onShowGifts: () => void;
 }) {
   const { pages, genres, gifts, latest } = highlights;
   return (
@@ -47,7 +49,7 @@ export function LibraryHighlights({
           </View>
         ) : null}
       </Row>
-      <Row iconName="gift-outline" title="Gifts" value={gifts} />
+      <Row iconName="gift-outline" title="Gifts" value={gifts.text} onPress={gifts.count > 0 ? onShowGifts : undefined} />
       {latest ? (
         <Tappable
           accessibilityRole="button"
@@ -70,24 +72,36 @@ export function LibraryHighlights({
   );
 }
 
+// One highlight; with onPress it opens a list (a chevron says so).
 function Row({
   iconName,
   title,
   value,
+  onPress,
   children,
 }: {
   iconName: ComponentProps<typeof Ionicons>["name"];
   title: string;
   value: string;
+  onPress?: () => void;
   children?: ReactNode;
 }) {
-  return (
+  const head = (
+    <View style={styles.head}>
+      <Ionicons name={iconName} size={icon.small} color={theme.bloom} />
+      <Text style={styles.title}>{title}</Text>
+      {value ? <Text style={styles.value}>{value}</Text> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={icon.small} color={theme.muted} /> : null}
+    </View>
+  );
+  return onPress ? (
+    <Tappable accessibilityRole="button" accessibilityLabel={`${title}: ${value}. Show them`} onPress={onPress} style={styles.row}>
+      {head}
+      {children}
+    </Tappable>
+  ) : (
     <View style={styles.row} accessible accessibilityLabel={`${title}: ${value}`}>
-      <View style={styles.head}>
-        <Ionicons name={iconName} size={icon.small} color={theme.bloom} />
-        <Text style={styles.title}>{title}</Text>
-        {value ? <Text style={styles.value}>{value}</Text> : null}
-      </View>
+      {head}
       {children}
     </View>
   );

@@ -205,6 +205,7 @@ function LibraryScreen() {
                   details={model.accountDetails}
                   library={model.librarySummary}
                   onOpenBook={openBook}
+                  onShowGifts={() => model.showGifts()}
                 />
               ) : null}
               {page === "detail" && selected ? (

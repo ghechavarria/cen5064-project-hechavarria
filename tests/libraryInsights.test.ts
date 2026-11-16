@@ -90,6 +90,10 @@ describe("Correcting how a book was acquired", () => {
     expect(model.selected?.giftedBy).toBe("Ellie");
     expect(model.getState().flash?.text).toBe("Saved: Gifted by Ellie.");
 
+    model.showGifts(); // the Account tab's Gifts line
+    expect(model.getState()).toMatchObject({ tab: "owned", catalogMode: "gifts", screen: "main" });
+    model.openBook(model.getState().view.owned[0]);
+
     model.editAcquisition();
     model.choosePurchased();
     await new Promise((resolve) => setTimeout(resolve, 0));

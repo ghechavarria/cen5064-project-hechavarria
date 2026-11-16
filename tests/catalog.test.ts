@@ -1,7 +1,7 @@
 /**
  * Tests: Presentation catalog grouping (A–Z / author / series).
  */
-import { Book, Shelf } from "../domain";
+import { Book, Gift, Purchase, Shelf } from "../domain";
 import { Catalog } from "../presentation/model/catalog";
 
 function book(title: string, author: string, series = ""): Book {
@@ -40,4 +40,17 @@ test("author and series grouping", () => {
     "Fantastic Mr Fox",
     "Standalone",
   ]);
+});
+
+test("Gifts lists only gifted books, under who gave them; with none, its own empty message", () => {
+  const gift = (title: string, giver: string) =>
+    new Book({ isbn: title, title, author: "A", coverUrl: "", publisher: "", shelf: Shelf.OWNED, acquisition: new Gift(giver) });
+  const bought = new Book({ isbn: "b", title: "Bought", author: "A", coverUrl: "", publisher: "", shelf: Shelf.OWNED, acquisition: new Purchase() });
+  const sections = Catalog.sections([gift("Matilda", "Grandma"), bought, gift("Dune", "Ellie"), gift("Emma", "Ellie")], "gifts");
+  expect(sections.map((section) => [section.title, section.data.map((book) => book.title)])).toEqual([
+    ["From Ellie", ["Dune", "Emma"]],
+    ["From Grandma", ["Matilda"]],
+  ]);
+  expect(Catalog.sections([bought], "gifts")).toEqual([]);
+  expect(Catalog.grouping("gifts").empty.title).toBe("No gifts yet");
 });

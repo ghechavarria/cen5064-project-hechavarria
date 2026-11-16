@@ -49,16 +49,18 @@ export function OwnedCatalog({
     onMode(next);
   }
 
-  if (books.length === 0) {
+  // Nothing to list: no owned books at all, or none in this grouping (no gifts yet).
+  if (sections.length === 0) {
+    const { empty } = Catalog.grouping(mode);
     return (
       <View style={styles.wrap}>
-        <SegmentedControl segments={MODE_SEGMENTS} selected={mode} onSelect={onMode} />
+        <SegmentedControl segments={MODE_SEGMENTS} selected={mode} onSelect={switchMode} />
         {/* Scrollable even when empty, so it can be pulled down to sync. */}
         <ScrollView refreshControl={refreshControl} showsVerticalScrollIndicator={false}>
           <EmptyShelf
-            iconName="library-outline"
-            title="No owned books yet"
-            message="Scan an ISBN onto Owned to fill this catalog."
+            iconName={mode === "gifts" ? "gift-outline" : "library-outline"}
+            title={books.length === 0 ? Catalog.groupings[0].empty.title : empty.title}
+            message={books.length === 0 ? Catalog.groupings[0].empty.message : empty.message}
             style={styles.empty}
           />
         </ScrollView>
@@ -99,12 +101,14 @@ export function OwnedCatalog({
             </View>
           ))}
         </ScrollView>
-        <LetterRail
-          sections={sections}
-          onJump={(index) =>
-            scroll.current?.scrollTo({ y: sectionTops.current[index] ?? 0, animated: false })
-          }
-        />
+        {Catalog.grouping(mode).hasRail ? (
+          <LetterRail
+            sections={sections}
+            onJump={(index) =>
+              scroll.current?.scrollTo({ y: sectionTops.current[index] ?? 0, animated: false })
+            }
+          />
+        ) : null}
       </View>
     </View>
   );

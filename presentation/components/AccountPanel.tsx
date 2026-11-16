@@ -24,12 +24,14 @@ export function AccountPanel({
   details,
   library,
   onOpenBook,
+  onShowGifts,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
   library: LibrarySummary;
   onOpenBook: (book: Book) => void;
+  onShowGifts: () => void;
 }) {
   if (!state.configured) {
     return (
@@ -40,7 +42,14 @@ export function AccountPanel({
     );
   }
   return state.account ? (
-    <SignedIn model={model} state={state} details={details} library={library} onOpenBook={onOpenBook} />
+    <SignedIn
+      model={model}
+      state={state}
+      details={details}
+      library={library}
+      onOpenBook={onOpenBook}
+      onShowGifts={onShowGifts}
+    />
   ) : (
     <SignedOut model={model} state={state} />
   );
@@ -52,18 +61,20 @@ function SignedIn({
   details,
   library,
   onOpenBook,
+  onShowGifts,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
   library: LibrarySummary;
   onOpenBook: (book: Book) => void;
+  onShowGifts: () => void;
 }) {
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Your library</Text>
       <LibraryStats stats={library.stats} progress={library.progress} />
-      <LibraryHighlights highlights={library.highlights} onOpenBook={onOpenBook} />
+      <LibraryHighlights highlights={library.highlights} onOpenBook={onOpenBook} onShowGifts={onShowGifts} />
       <Text style={styles.title}>Your account</Text>
       <View>
         {details.map((detail) => (
