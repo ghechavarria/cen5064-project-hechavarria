@@ -196,6 +196,17 @@ export class AccountModel extends Observable<AccountState> {
     return this.syncing;
   }
 
+  /**
+   * Also syncs every `ms` until the returned function is called: a safety net
+   * for a Realtime notice that never arrived (a browser slows the timers of a
+   * tab in the background, and its connection can drop unnoticed). With
+   * incremental sync, a check that finds nothing is one small request.
+   */
+  syncEvery(ms: number): () => void {
+    const timer = setInterval(() => void this.sync(), ms);
+    return () => clearInterval(timer);
+  }
+
   // --- Private helpers ---
 
   // Sign-in and sign-up both end here: move this phone's books into the

@@ -40,6 +40,7 @@ import { belowStatusBar, styles } from "./styles/app.styles";
 import { fontAssets } from "./styles/fonts";
 
 const OWNER_ID = "local";
+const SAFETY_SYNC_MS = 30_000;
 const FOREST = require("../assets/forest-bg.png");
 
 export function App() {
@@ -78,14 +79,23 @@ function LibraryScreen() {
     return () => model.dispose();
   }, [model]);
 
-  // Back on screen: sync, in case a change from another phone was missed meanwhile.
+  // Back on screen: sync, in case a change from another device was missed
+  // meanwhile. While on screen, also check every 30 s (ADR-013).
   useEffect(() => {
+    let stopChecking: (() => void) | null = account.syncEvery(SAFETY_SYNC_MS);
     const subscription = AppState.addEventListener("change", (appState) => {
       if (appState === "active") {
         void account.sync();
+        stopChecking = stopChecking ?? account.syncEvery(SAFETY_SYNC_MS);
+      } else {
+        stopChecking?.();
+        stopChecking = null;
       }
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      stopChecking?.();
+    };
   }, [account]);
 
   if (!state.ready || (!fontsLoaded && !fontError)) {

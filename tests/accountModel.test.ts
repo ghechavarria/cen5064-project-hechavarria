@@ -80,6 +80,24 @@ describe("Account tab", () => {
     expect(app.accountDetails).toEqual([]);
   });
 
+  test("a regular check catches a change whose Realtime notice never arrived", async () => {
+    const backup = new FakeBackup();
+    const accounts = new FakeAccounts();
+    const phoneA = await phone(accounts, backup);
+    const phoneB = await phone(accounts, backup);
+    await signIn(phoneA.account);
+    await signIn(phoneB.account);
+    phoneB.account.dispose(); // phone B's Realtime connection is gone
+    const stop = phoneB.account.syncEvery(50);
+
+    await phoneA.store.save("user-1", owned(MATILDA));
+    await phoneA.account.sync();
+    expect(titles(phoneB.app)).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(titles(phoneB.app)).toEqual(["Matilda"]);
+    stop();
+  });
+
   test("opening the app signed out starts on the Account tab; signed in, it starts on To be read", async () => {
     const accounts = new FakeAccounts();
     const signedOut = await phone(accounts);
