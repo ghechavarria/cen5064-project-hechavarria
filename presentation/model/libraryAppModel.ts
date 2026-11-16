@@ -211,7 +211,9 @@ export class LibraryAppModel extends Observable<AppState> {
       this.account.watchOwner((ownerId) => void this.switchOwner(ownerId));
       this.account.watchLibrary(() => void this.reload());
     }
-    this.setState({ ready: true, view: await this.viewOf(controller), busy: true });
+    // Signed out, every shelf is locked: open where signing in happens.
+    const tab = this.locked ? "account" : this.getState().tab;
+    this.setState({ ready: true, view: await this.viewOf(controller), tab, busy: true });
     try {
       if (!this.locked) {
         // Sync first: a book deleted on another device while this one was

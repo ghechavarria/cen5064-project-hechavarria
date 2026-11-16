@@ -10,6 +10,8 @@ export const styles = StyleSheet.create({
   muted: text.muted,
   scroll: { flex: 1, minHeight: 0, backgroundColor: "transparent" },
   main: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.md },
+  // The same side margins as `main`, for a card shown outside the scrolling list.
+  inset: { paddingHorizontal: space.lg },
 });
 
 // Keep content below the phone's status bar / notch.

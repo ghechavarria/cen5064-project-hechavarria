@@ -1,5 +1,5 @@
 /** Styles for Logo (mark tile + wordmark, in two sizes). */
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { font, radius, softShadow, space, text, theme } from "./theme";
 
 export const styles = StyleSheet.create({
@@ -13,8 +13,12 @@ export const styles = StyleSheet.create({
     ...softShadow,
   },
   word: { ...text.strong, color: theme.ink, letterSpacing: -0.2 },
-  // The phone's own font at the same weight, for before Outfit has loaded.
-  systemWord: { fontFamily: undefined, fontWeight: "600" },
+  // The device's own sans-serif at the same weight, for before Outfit has loaded
+  // (a browser would otherwise fall back to a serif).
+  systemWord: {
+    fontFamily: Platform.OS === "web" ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : undefined,
+    fontWeight: "600",
+  },
 });
 
 // Tile, glyph and wordmark scale together.

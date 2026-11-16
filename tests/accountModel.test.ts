@@ -60,9 +60,19 @@ describe("Account tab", () => {
     expect((await store.loadLibrary("local")).books).toHaveLength(0);
   });
 
+  test("opening the app signed out starts on the Account tab; signed in, it starts on To be read", async () => {
+    const accounts = new FakeAccounts();
+    const signedOut = await phone(accounts);
+    expect(signedOut.app.getState().tab).toBe("account");
+    await signIn(signedOut.account);
+    const signedIn = await phone(accounts);
+    expect(signedIn.app.getState().tab).toBe("tbr");
+  });
+
   test("signed out, every shelf is empty and scanning is refused until someone signs in", async () => {
     const { store, account, app } = await phone();
     await store.save("local", owned()); // a book kept from before accounts
+    app.selectTab("tbr");
     expect(app.locked).toBe(true);
     expect(app.getState().view.owned).toHaveLength(0);
     expect(app.hint).toBe("Sign in on the Account tab to use your library.");

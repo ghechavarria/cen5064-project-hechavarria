@@ -148,12 +148,14 @@ function LibraryScreen() {
 
         <View style={styles.stage}>
           {model.locked && page !== "account" ? (
-            <EmptyShelf
-              iconName="person-circle-outline"
-              title="Sign in to see your library"
-              message="Your books are kept in your account, so you can see them on any phone."
-              action={{ label: "Go to Account", onPress: () => model.selectTab("account") }}
-            />
+            <View style={styles.inset}>
+              <EmptyShelf
+                iconName="person-circle-outline"
+                title="Sign in to see your library"
+                message="Your books are kept in your account, so you can see them on any phone."
+                action={{ label: "Go to Account", onPress: () => model.selectTab("account") }}
+              />
+            </View>
           ) : page === "owned" ? (
             <OwnedCatalog
               books={state.view.owned}
