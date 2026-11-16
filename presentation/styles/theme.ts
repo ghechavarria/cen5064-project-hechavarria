@@ -18,9 +18,10 @@ export const theme = {
   glowSoft: "rgba(126,240,224,0.45)", // the halo behind large titles
   selected: "rgba(126,240,224,0.16)", // the pill behind a chosen tab or segment
   border: "rgba(126,240,224,0.35)", // quiet outlines
-  bloom: "#FF9AD5", // pink mushrooms: the To read count and the reading bar (8.1:1 on the panel)
-  bloomSoft: "rgba(176,124,240,0.18)", // the reading bar's empty track
-  bloomDeep: "#9B6BF2", // the purple end of the reading bar
+  bloom: "#FF9AD5", // pink mushrooms: the To read count and the reading ring (8.1:1 on the panel)
+  bloomSoft: "rgba(176,124,240,0.18)", // the reading ring's empty track
+  bloomDeep: "#9B6BF2", // the purple start of the reading ring
+  bloomGlow: "rgba(255,154,213,0.6)", // the glow around the ring's percentage
   danger: "#B5473A", // filled destructive button (light text on it passes contrast)
   dangerInk: "#F2917F", // destructive text and outlines on dark surfaces
   overlay: "rgba(5,14,28,0.78)",

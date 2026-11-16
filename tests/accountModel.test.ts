@@ -76,7 +76,12 @@ describe("Account tab", () => {
       ["Read", 0],
       ["Wanted", 1],
     ]);
-    expect(app.readingProgress).toEqual({ read: 0, owned: 1, summary: "0 of 1 owned book read" });
+    expect(app.readingProgress).toEqual({
+      read: 0,
+      owned: 1,
+      headline: "0 of 1 read",
+      note: "1 book is waiting on your shelves.",
+    });
     expect(details["Member since"]).toBe(Labels.day(FakeAccounts.CREATED));
     expect(details["Last synced"]).toMatch(/^Today at /);
 

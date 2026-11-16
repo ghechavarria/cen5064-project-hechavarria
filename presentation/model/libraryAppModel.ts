@@ -51,8 +51,8 @@ type AcquisitionPrompt = {
 /** One count on the Account tab's library tiles. */
 export type LibraryStat = { key: "owned" | "toRead" | "read" | "wanted"; label: string; count: number };
 
-/** How much of the owned shelf has been read. */
-export type ReadingProgress = { read: number; owned: number; summary: string };
+/** How much of the owned shelf has been read: the counts, a headline, and a line of encouragement. */
+export type ReadingProgress = { read: number; owned: number; headline: string; note: string };
 
 export type AppState = {
   ready: boolean;
@@ -202,8 +202,15 @@ export class LibraryAppModel extends Observable<AppState> {
     const { view } = this.getState();
     const owned = view.owned.length;
     const read = view.toBeRead(ReadingStatus.READ).length;
-    const summary = owned === 0 ? "No owned books yet" : `${read} of ${Labels.count(owned, "owned book")} read`;
-    return { read, owned, summary };
+    const waiting = owned - read;
+    if (owned === 0) {
+      return { read, owned, headline: "No books yet", note: "Scan a book onto Owned to start your shelves." };
+    }
+    const note =
+      waiting === 0
+        ? "Every book you own is read."
+        : `${Labels.count(waiting, "book is", "books are")} waiting on your shelves.`;
+    return { read, owned, headline: `${read} of ${owned} read`, note };
   }
 
   /** Pulling a book list down syncs it: only when someone is signed in to sync with. */

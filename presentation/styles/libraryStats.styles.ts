@@ -1,9 +1,6 @@
-/** Styles for LibraryStats (the stat tiles and the reading-progress bar). */
+/** Styles for LibraryStats (the reading ring's row and the stat tiles). */
 import { StyleSheet } from "react-native";
 import { font, radius, space, text, theme } from "./theme";
-
-// The reading bar's fill, from the forest's mushroom purple into pink.
-export const bloomFade = [theme.bloomDeep, theme.bloom] as const;
 
 /**
  * One color per tile, all taken from the forest art: teal moss, pink and violet
@@ -25,7 +22,11 @@ export const statTones = {
 };
 
 export const styles = StyleSheet.create({
-  wrap: { gap: space.md },
+  wrap: { gap: space.lg },
+  hero: { flexDirection: "row", alignItems: "center", gap: space.lg },
+  heroText: { flex: 1, gap: space.xs },
+  headline: { ...text.display, ...text.tabular, fontSize: font.heading, color: theme.ink },
+  note: { ...text.muted, fontSize: font.small },
   tiles: { flexDirection: "row", gap: space.sm },
   tile: {
     flex: 1,
@@ -45,9 +46,4 @@ export const styles = StyleSheet.create({
     textShadowRadius: 12,
   },
   label: { ...text.ui, fontSize: font.caption, color: theme.ink },
-  progressHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: space.xs },
-  progressText: { ...text.ui, fontSize: font.small, color: theme.muted, flexShrink: 1 },
-  percent: { ...text.strong, ...text.tabular, fontSize: font.small, color: theme.bloom },
-  track: { height: 8, borderRadius: radius.pill, backgroundColor: theme.bloomSoft, overflow: "hidden" },
-  fill: { height: "100%", borderRadius: radius.pill },
 });
