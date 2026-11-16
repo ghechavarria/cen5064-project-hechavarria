@@ -82,6 +82,9 @@ export type AppState = {
   prompt: Prompt | null;
 };
 
+// How many names the "Who gifted it?" dropdown lists at most.
+const MAX_GIVER_SUGGESTIONS = 4;
+
 const TAB_HEADINGS: Record<MenuTab, string> = {
   tbr: "To be read",
   owned: "Owned",
@@ -372,6 +375,20 @@ export class LibraryAppModel extends Observable<AppState> {
 
   setIsbnDraft(isbnDraft: string): void {
     this.setState({ isbnDraft });
+  }
+
+  /**
+   * Names already used for gifts in this library, for the "Who gifted it?"
+   * dropdown: most gifts first, narrowed to those containing what is typed,
+   * and none once the name typed is already one of them.
+   */
+  get giverSuggestions(): string[] {
+    const typed = this.getState().giftName.trim().toLowerCase();
+    const givers = LibraryInsights.givers(this.getState().view);
+    if (givers.some((name) => name.toLowerCase() === typed)) {
+      return [];
+    }
+    return givers.filter((name) => name.toLowerCase().includes(typed)).slice(0, MAX_GIVER_SUGGESTIONS);
   }
 
   setGiftName(giftName: string): void {

@@ -103,6 +103,7 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
           placeholder: "Name",
           value: giftName,
           onChangeText: (text) => model.setGiftName(text),
+          suggestions: model.giverSuggestions,
         }}
         onRequestClose={cancel}
         actions={[

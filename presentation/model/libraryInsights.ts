@@ -72,20 +72,28 @@ export class LibraryInsights {
       .map((name) => name.charAt(0).toUpperCase() + name.slice(1));
   }
 
+  /** Everyone who has given a book in this library, most gifts first (names matched without case). */
+  static givers(view: LibraryView): string[] {
+    return LibraryInsights.giverCounts(view.owned).map((entry) => entry.name);
+  }
+
   // Owned books that were gifts, and the giver of the most of them.
   private static gifts(owned: Book[]): Insights["gifts"] {
     const gifts = owned.filter((book) => book.acquiredAs === Acquisition.GIFTED);
+    return { count: gifts.length, topGiver: LibraryInsights.giverCounts(gifts)[0]?.name ?? null };
+  }
+
+  private static giverCounts(books: Book[]): { name: string; gifts: number }[] {
     const byGiver = new Map<string, { name: string; gifts: number }>();
-    for (const book of gifts) {
-      const name = book.giftedBy?.trim();
+    for (const book of books) {
+      const name = book.acquiredAs === Acquisition.GIFTED ? book.giftedBy?.trim() : "";
       if (name) {
         const entry = byGiver.get(name.toLowerCase()) ?? { name, gifts: 0 };
         entry.gifts += 1;
         byGiver.set(name.toLowerCase(), entry);
       }
     }
-    const top = [...byGiver.values()].sort((a, b) => b.gifts - a.gifts || a.name.localeCompare(b.name))[0];
-    return { count: gifts.length, topGiver: top?.name ?? null };
+    return [...byGiver.values()].sort((a, b) => b.gifts - a.gifts || a.name.localeCompare(b.name));
   }
 
   // The book with the newest added date (either shelf).

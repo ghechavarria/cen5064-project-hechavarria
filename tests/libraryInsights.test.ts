@@ -59,6 +59,25 @@ describe("LibraryInsights", () => {
   });
 });
 
+test("'Who gifted it?' suggests names used before: most gifts first, narrowed as you type", async () => {
+  const repository = new MemoryBookRepository();
+  await repository.save("local", book("1", { acquisition: new Gift("Grace") }));
+  await repository.save("local", book("2", { acquisition: new Gift("Ellie") }));
+  await repository.save("local", book("3", { acquisition: new Gift("ellie") }));
+  await repository.save("local", book("4", { shelf: Shelf.WANTED, acquisition: null }));
+  const model = new LibraryAppModel(async () => controllerFor(repository), new FakeDevices());
+  await model.start();
+
+  expect(model.giverSuggestions).toEqual(["Ellie", "Grace"]);
+  model.setGiftName("gr");
+  expect(model.giverSuggestions).toEqual(["Grace"]);
+  model.setGiftName("grace"); // already one of them: the dropdown closes
+  expect(model.giverSuggestions).toEqual([]);
+  model.setGiftName("Zoe");
+  expect(model.giverSuggestions).toEqual([]);
+  model.dispose();
+});
+
 describe("Correcting how a book was acquired", () => {
   test("only an Owned book records it, and a gift still needs a name", async () => {
     const repository = new MemoryBookRepository();
