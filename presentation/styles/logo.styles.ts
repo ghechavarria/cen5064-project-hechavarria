@@ -13,6 +13,8 @@ export const styles = StyleSheet.create({
     ...softShadow,
   },
   word: { ...text.strong, color: theme.ink, letterSpacing: -0.2 },
+  // The phone's own font at the same weight, for before Outfit has loaded.
+  systemWord: { fontFamily: undefined, fontWeight: "600" },
 });
 
 // Tile, glyph and wordmark scale together.

@@ -93,7 +93,7 @@ function LibraryScreen() {
       <View style={[styles.shell, belowStatusBar(insets.top)]}>
         <ArtFill source={FOREST} />
         <View style={styles.loading}>
-          <Logo size="large" />
+          <Logo size="large" systemFont={!fontsLoaded} />
           <Text style={styles.muted}>Opening the stacks…</Text>
         </View>
       </View>
