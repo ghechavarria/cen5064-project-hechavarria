@@ -70,12 +70,13 @@ describe("Account tab", () => {
     await settle();
     const details = Object.fromEntries(app.accountDetails.map((detail) => [detail.label, detail.value]));
     expect(details).toMatchObject({ Email: "grace@example.com" });
-    expect(app.libraryStats).toEqual([
-      { label: "Owned", count: 1 },
-      { label: "To read", count: 1 },
-      { label: "Read", count: 0 },
-      { label: "Wanted", count: 1 },
+    expect(app.libraryStats.map((stat) => [stat.label, stat.count])).toEqual([
+      ["Owned", 1],
+      ["To read", 1],
+      ["Read", 0],
+      ["Wanted", 1],
     ]);
+    expect(app.readingProgress).toEqual({ read: 0, owned: 1, summary: "0 of 1 owned book read" });
     expect(details["Member since"]).toBe(Labels.day(FakeAccounts.CREATED));
     expect(details["Last synced"]).toMatch(/^Today at /);
 

@@ -20,7 +20,9 @@ export const theme = {
   border: "rgba(126,240,224,0.35)", // quiet outlines
   bloom: "#FF9AD5", // pink, for the library stats' counts (8.1:1 on the panel)
   bloomSoft: "rgba(176,124,240,0.18)", // the forest's purple mushrooms: the fill behind a stat
-  bloomBorder: "rgba(190,146,250,0.45)", // a stat's outline
+  bloomBorder: "rgba(190,146,250,0.45)", // a stat's outline and icon
+  bloomDeep: "#9B6BF2", // the purple end of the reading bar
+  bloomGlow: "rgba(255,154,213,0.55)", // the glow around a pink count
   danger: "#B5473A", // filled destructive button (light text on it passes contrast)
   dangerInk: "#F2917F", // destructive text and outlines on dark surfaces
   overlay: "rgba(5,14,28,0.78)",

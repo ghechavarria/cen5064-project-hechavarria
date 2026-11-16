@@ -48,6 +48,12 @@ type AcquisitionPrompt = {
   onCancel: () => void;
 };
 
+/** One count on the Account tab's library tiles. */
+export type LibraryStat = { key: "owned" | "toRead" | "read" | "wanted"; label: string; count: number };
+
+/** How much of the owned shelf has been read. */
+export type ReadingProgress = { read: number; owned: number; summary: string };
+
 export type AppState = {
   ready: boolean;
   view: LibraryView;
@@ -181,14 +187,23 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /** The library at a glance, for the Account tab: how many titles on each shelf and reading list. */
-  get libraryStats(): { label: string; count: number }[] {
+  get libraryStats(): LibraryStat[] {
     const { view } = this.getState();
     return [
-      { label: "Owned", count: view.owned.length },
-      { label: "To read", count: view.toBeRead(ReadingStatus.UNREAD).length },
-      { label: "Read", count: view.toBeRead(ReadingStatus.READ).length },
-      { label: "Wanted", count: view.wanted.length },
+      { key: "owned", label: "Owned", count: view.owned.length },
+      { key: "toRead", label: "To read", count: view.toBeRead(ReadingStatus.UNREAD).length },
+      { key: "read", label: "Read", count: view.toBeRead(ReadingStatus.READ).length },
+      { key: "wanted", label: "Wanted", count: view.wanted.length },
     ];
+  }
+
+  /** How much of the owned shelf has been read, for the Account tab's progress bar. */
+  get readingProgress(): ReadingProgress {
+    const { view } = this.getState();
+    const owned = view.owned.length;
+    const read = view.toBeRead(ReadingStatus.READ).length;
+    const summary = owned === 0 ? "No owned books yet" : `${read} of ${Labels.count(owned, "owned book")} read`;
+    return { read, owned, summary };
   }
 
   /** Pulling a book list down syncs it: only when someone is signed in to sync with. */

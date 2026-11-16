@@ -198,7 +198,7 @@ function LibraryScreen() {
                   onScan={() => model.selectTab("scan")}
                 />
               ) : null}
-              {page === "account" ? <AccountPanel model={account} state={accountState} details={model.accountDetails} stats={model.libraryStats} /> : null}
+              {page === "account" ? <AccountPanel model={account} state={accountState} details={model.accountDetails} stats={model.libraryStats} progress={model.readingProgress} /> : null}
               {page === "detail" && selected ? (
                 <BookDetail
                   book={selected}

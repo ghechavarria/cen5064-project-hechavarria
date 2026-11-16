@@ -7,24 +7,27 @@
  */
 import { Text, View } from "react-native";
 import { AccountForm, AccountModel, AccountState } from "../model/accountModel";
+import { LibraryStat, ReadingProgress } from "../model/libraryAppModel";
 import { styles } from "../styles/accountPanel.styles";
 import { Button } from "./Button";
+import { LibraryStats } from "./LibraryStats";
 import { Tappable } from "./Tappable";
 import { TextField } from "./TextField";
 
 type Detail = { label: string; value: string };
-type Stat = { label: string; count: number };
 
 export function AccountPanel({
   model,
   state,
   details,
   stats,
+  progress,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
-  stats: Stat[];
+  stats: LibraryStat[];
+  progress: ReadingProgress;
 }) {
   if (!state.configured) {
     return (
@@ -35,7 +38,7 @@ export function AccountPanel({
     );
   }
   return state.account ? (
-    <SignedIn model={model} state={state} details={details} stats={stats} />
+    <SignedIn model={model} state={state} details={details} stats={stats} progress={progress} />
   ) : (
     <SignedOut model={model} state={state} />
   );
@@ -46,23 +49,18 @@ function SignedIn({
   state,
   details,
   stats,
+  progress,
 }: {
   model: AccountModel;
   state: AccountState;
   details: Detail[];
-  stats: Stat[];
+  stats: LibraryStat[];
+  progress: ReadingProgress;
 }) {
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Your library</Text>
-      <View style={styles.stats}>
-        {stats.map((stat) => (
-          <View key={stat.label} style={styles.stat} accessible accessibilityLabel={`${stat.label}: ${stat.count}`}>
-            <Text style={styles.statCount}>{stat.count}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </View>
-        ))}
-      </View>
+      <LibraryStats stats={stats} progress={progress} />
       <Text style={styles.title}>Your account</Text>
       <View>
         {details.map((detail) => (
