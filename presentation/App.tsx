@@ -35,6 +35,7 @@ import { AccountModel } from "./model/accountModel";
 import { Catalog } from "./model/catalog";
 import { LibraryAppModel, OWNED_MODES, SHELF_MODES } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
+import { useKeyboardOpen } from "./model/useKeyboardOpen";
 import { useObservable } from "./model/useObservable";
 import { belowStatusBar, styles } from "./styles/app.styles";
 import { fontAssets } from "./styles/fonts";
@@ -72,6 +73,7 @@ function LibraryScreen() {
     };
   });
   const state = useObservable(model);
+  const keyboardOpen = useKeyboardOpen();
   const accountState = useObservable(account);
   // Bundled fonts; if they fail to load, the system font is used instead.
   const [fontsLoaded, fontError] = useFonts(fontAssets);
@@ -126,10 +128,9 @@ function LibraryScreen() {
     <View style={styles.shell}>
       <ArtFill source={FOREST} />
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        style={styles.frame}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      {/* The frame shrinks above the keyboard on both platforms (Android draws
+          edge to edge, so it doesn't resize the window by itself). */}
+      <KeyboardAvoidingView style={styles.frame} behavior="padding">
         <ScreenHeader
           heading={model.heading}
           hint={model.hint}
@@ -151,8 +152,9 @@ function LibraryScreen() {
 
         <FlashBanner flash={state.flash} onDismiss={() => model.dismissFlash()} />
 
-        {/* The camera sits outside the ScrollView so it keeps a fixed size. */}
-        {page === "scan" && !model.locked ? (
+        {/* The camera sits outside the ScrollView so it keeps a fixed size; while the
+            keyboard is up (typing an ISBN) it steps aside so the field stays in view. */}
+        {page === "scan" && !model.locked && !keyboardOpen ? (
           <IsbnCamera
             available={model.cameraAvailable}
             listening={model.cameraListening}
@@ -259,7 +261,10 @@ function LibraryScreen() {
           )}
         </View>
 
-        <MenuBar active={state.tab} bottomInset={insets.bottom} onSelect={(tab) => model.selectTab(tab)} />
+        {/* While typing, the menu steps aside too, leaving the room to the field. */}
+        {keyboardOpen ? null : (
+          <MenuBar active={state.tab} bottomInset={insets.bottom} onSelect={(tab) => model.selectTab(tab)} />
+        )}
       </KeyboardAvoidingView>
 
       <LibraryPrompts model={model} state={state} />
