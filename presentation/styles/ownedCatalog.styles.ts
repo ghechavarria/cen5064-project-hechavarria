@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   sectionHead: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.sm, marginBottom: space.md },
   section: { ...text.display, color: theme.glow, fontSize: font.heading },
   rule: { flex: 1, height: 1, backgroundColor: theme.border },
-  // The pen beside a giver's name in the Gifted list (44-point target with its hitSlop).
-  edit: { padding: space.xs },
+  // A heading's name and, in Gifted, the pen beside it (its hitSlop keeps a 44-point target).
+  titleGroup: { flexDirection: "row", alignItems: "center", gap: space.xs },
   empty: { marginHorizontal: space.lg },
 });

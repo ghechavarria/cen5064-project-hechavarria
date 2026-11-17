@@ -28,8 +28,8 @@ export const styles = StyleSheet.create({
   headline: { ...text.display, ...text.tabular, fontSize: font.heading, color: theme.ink },
   note: { ...text.muted, fontSize: font.small },
   tiles: { flexDirection: "row", gap: space.sm },
+  tileTap: { flex: 1 },
   tile: {
-    flex: 1,
     alignItems: "center",
     gap: space.xs,
     paddingTop: space.sm,

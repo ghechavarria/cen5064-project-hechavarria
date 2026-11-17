@@ -8,7 +8,7 @@
 import { Text, View } from "react-native";
 import { AccountForm, AccountModel, AccountState } from "../model/accountModel";
 import { Book } from "../../domain";
-import { LibrarySummary } from "../model/libraryAppModel";
+import { LibraryStat, LibrarySummary } from "../model/libraryAppModel";
 import { styles } from "../styles/accountPanel.styles";
 import { Button } from "./Button";
 import { LibraryHighlights } from "./LibraryHighlights";
@@ -25,6 +25,7 @@ export function AccountPanel({
   library,
   onOpenBook,
   onShowGifts,
+  onOpenStat,
 }: {
   model: AccountModel;
   state: AccountState;
@@ -32,6 +33,7 @@ export function AccountPanel({
   library: LibrarySummary;
   onOpenBook: (book: Book) => void;
   onShowGifts: () => void;
+  onOpenStat: (key: LibraryStat["key"]) => void;
 }) {
   if (!state.configured) {
     return (
@@ -49,6 +51,7 @@ export function AccountPanel({
       library={library}
       onOpenBook={onOpenBook}
       onShowGifts={onShowGifts}
+      onOpenStat={onOpenStat}
     />
   ) : (
     <SignedOut model={model} state={state} />
@@ -62,6 +65,7 @@ function SignedIn({
   library,
   onOpenBook,
   onShowGifts,
+  onOpenStat,
 }: {
   model: AccountModel;
   state: AccountState;
@@ -69,11 +73,12 @@ function SignedIn({
   library: LibrarySummary;
   onOpenBook: (book: Book) => void;
   onShowGifts: () => void;
+  onOpenStat: (key: LibraryStat["key"]) => void;
 }) {
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Your library</Text>
-      <LibraryStats stats={library.stats} progress={library.progress} />
+      <LibraryStats stats={library.stats} progress={library.progress} onOpenStat={onOpenStat} />
       <LibraryHighlights highlights={library.highlights} onOpenBook={onOpenBook} onShowGifts={onShowGifts} />
       <Text style={styles.title}>Your account</Text>
       <View>

@@ -76,6 +76,21 @@ test("'Who gifted it?' offers past givers as chips that stay put while typing; t
   model.dispose();
 });
 
+test("each Account tile opens the list it counts", async () => {
+  const model = new LibraryAppModel(async () => controllerFor(), new FakeDevices());
+  await model.start();
+  model.showGifts(); // Owned left on Gifted…
+  model.openStat("owned");
+  expect(model.getState()).toMatchObject({ tab: "owned", catalogMode: "az" }); // …the Owned tile shows them all
+  model.openStat("read");
+  expect(model.getState()).toMatchObject({ tab: "tbr", reading: ReadingStatus.READ });
+  model.openStat("toRead");
+  expect(model.getState()).toMatchObject({ tab: "tbr", reading: ReadingStatus.UNREAD });
+  model.openStat("wanted");
+  expect(model.getState().tab).toBe("wanted");
+  model.dispose();
+});
+
 describe("Renaming a giver (the pen in the Gifted list)", () => {
   test("renames them on every book they gave, matched without case; a blank name is refused", async () => {
     const repository = new MemoryBookRepository();

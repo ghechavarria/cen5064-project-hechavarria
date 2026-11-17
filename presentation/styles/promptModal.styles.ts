@@ -26,22 +26,6 @@ export const styles = StyleSheet.create({
   title: { ...text.title, fontSize: font.heading, color: theme.ink, textAlign: "center" },
   body: { ...text.muted, marginBottom: space.xs, textAlign: "center" },
   input: { marginVertical: space.sm },
-  // Names used before: one row of chips that scrolls sideways, so its height never changes.
-  choices: { gap: space.xs, marginTop: -space.xs, marginBottom: space.sm },
-  choicesLabel: { ...text.ui, fontSize: font.caption, color: theme.muted },
-  chipRow: { gap: space.sm },
-  chip: {
-    minHeight: 36,
-    justifyContent: "center",
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.surface,
-  },
-  chipOn: { backgroundColor: theme.selected, borderColor: theme.glow },
-  chipText: { ...text.ui, fontSize: font.small, color: theme.ink },
-  chipTextOn: { color: theme.glow },
   // Room for two lines, kept even when empty, so the buttons below don't jump.
   note: { ...text.muted, fontSize: font.small, textAlign: "center", minHeight: 40, marginBottom: space.xs },
 });

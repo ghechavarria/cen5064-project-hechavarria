@@ -12,6 +12,7 @@ import { LibraryStat, ReadingProgress } from "../model/libraryAppModel";
 import { statTones, styles } from "../styles/libraryStats.styles";
 import { icon } from "../styles/theme";
 import { ReadingRing } from "./ReadingRing";
+import { Tappable } from "./Tappable";
 
 // Each count wears the icon its tab uses in the menu bar (Read: the leaf on TBR's Read switch).
 const ICONS: Record<LibraryStat["key"], ComponentProps<typeof Ionicons>["name"]> = {
@@ -21,7 +22,15 @@ const ICONS: Record<LibraryStat["key"], ComponentProps<typeof Ionicons>["name"]>
   wanted: "heart-outline",
 };
 
-export function LibraryStats({ stats, progress }: { stats: LibraryStat[]; progress: ReadingProgress }) {
+export function LibraryStats({
+  stats,
+  progress,
+  onOpenStat,
+}: {
+  stats: LibraryStat[];
+  progress: ReadingProgress;
+  onOpenStat: (key: LibraryStat["key"]) => void;
+}) {
   const share = progress.owned === 0 ? 0 : progress.read / progress.owned;
   return (
     <View style={styles.wrap}>
@@ -42,17 +51,20 @@ export function LibraryStats({ stats, progress }: { stats: LibraryStat[]; progre
         {stats.map((stat) => {
           const tone = statTones[stat.key];
           return (
-            <LinearGradient
+            // Each tile opens the list it counts.
+            <Tappable
               key={stat.key}
-              colors={tone.glass}
-              style={[styles.tile, { borderColor: tone.edge }]}
-              accessible
-              accessibilityLabel={`${stat.label}: ${stat.count}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${stat.label}: ${stat.count}. Show them`}
+              onPress={() => onOpenStat(stat.key)}
+              style={styles.tileTap}
             >
-              <Ionicons name={ICONS[stat.key]} size={icon.small} color={tone.color} />
-              <Text style={[styles.count, { color: tone.color, textShadowColor: tone.glow }]}>{stat.count}</Text>
-              <Text style={styles.label}>{stat.label}</Text>
-            </LinearGradient>
+              <LinearGradient colors={tone.glass} style={[styles.tile, { borderColor: tone.edge }]}>
+                <Ionicons name={ICONS[stat.key]} size={icon.small} color={tone.color} />
+                <Text style={[styles.count, { color: tone.color, textShadowColor: tone.glow }]}>{stat.count}</Text>
+                <Text style={styles.label}>{stat.label}</Text>
+              </LinearGradient>
+            </Tappable>
           );
         })}
       </View>

@@ -83,9 +83,6 @@ export type AppState = {
   prompt: Prompt | null;
 };
 
-// How many past givers the "Who gifted it?" chips offer at most.
-const MAX_GIVER_CHOICES = 8;
-
 /** What the Rename popup would do, worded for it; `to` is the name the books will carry. */
 type RenamePlan = { title: string; body: string; note: string; action: string; canSave: boolean; to: string };
 
@@ -366,6 +363,26 @@ export class LibraryAppModel extends Observable<AppState> {
     this.setState({ reading });
   }
 
+  /** An Account tab tile opens the list it counts. */
+  openStat(key: LibraryStat["key"]): void {
+    switch (key) {
+      case "owned":
+        this.selectTab("owned");
+        if (this.getState().catalogMode === "gifts") {
+          this.setCatalogMode("az"); // every owned book, not only the gifts
+        }
+        return;
+      case "toRead":
+      case "read":
+        this.selectTab("tbr");
+        this.showReading(key === "read" ? ReadingStatus.READ : ReadingStatus.UNREAD);
+        return;
+      case "wanted":
+        this.selectTab("wanted");
+        return;
+    }
+  }
+
   /** Every gifted book: the Owned catalog, grouped by who gave them. */
   showGifts(): void {
     this.selectTab("owned");
@@ -382,15 +399,13 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /**
-   * Past givers for the chips under "Who gifted it?": always the same names in
-   * the same order (most gifts first), so nothing moves while typing. `selected`
-   * is the one the name typed matches, shown lit.
+   * Past givers for the "Gifted before" dropdown under "Who gifted it?": every
+   * one, most gifts first, in the same order while typing. `selected` is the one
+   * the name typed matches, shown checked.
    */
   get giverChoices(): { names: string[]; selected: string | null } {
     const typed = this.getState().giftName.trim().toLowerCase();
-    const names = LibraryInsights.givers(this.getState().view)
-      .slice(0, MAX_GIVER_CHOICES)
-      .map((giver) => giver.name);
+    const names = LibraryInsights.givers(this.getState().view).map((giver) => giver.name);
     return { names, selected: names.find((name) => name.toLowerCase() === typed) ?? null };
   }
 

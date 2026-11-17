@@ -185,12 +185,15 @@ function SeriesSection({
 function SectionHeading({ title, onEdit }: { title: string; onEdit?: () => void }) {
   return (
     <View style={styles.sectionHead} accessibilityRole="header">
-      <Text style={styles.section}>{title}</Text>
-      {onEdit ? (
-        <Tappable accessibilityRole="button" accessibilityLabel={`Rename: ${title}`} onPress={onEdit} hitSlop={12} style={styles.edit}>
-          <Ionicons name="pencil" size={icon.medium} color={theme.glow} />
-        </Tappable>
-      ) : null}
+      {/* The pen sits right after the name it renames, then the rule runs on. */}
+      <View style={styles.titleGroup}>
+        <Text style={styles.section}>{title}</Text>
+        {onEdit ? (
+          <Tappable accessibilityRole="button" accessibilityLabel={`Rename: ${title}`} onPress={onEdit} hitSlop={14}>
+            <Ionicons name="pencil" size={icon.small} color={theme.glow} />
+          </Tappable>
+        ) : null}
+      </View>
       <View style={styles.rule} />
     </View>
   );
