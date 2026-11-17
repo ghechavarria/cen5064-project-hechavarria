@@ -1,18 +1,20 @@
 /**
- * Component: OwnedCatalog — the Owned tab. A segmented switch picks the
- * grouping strategy (A–Z / Author / Series / Gifted); every mode shows its
- * sections in one CatalogList with the A–Z rail beside it:
+ * Component: GroupedCatalog — Owned and Wanted. A segmented switch picks the
+ * grouping strategy (Owned: A–Z / Author / Series / Gifted; Wanted: A–Z /
+ * Author / Series); every mode shows its sections in one CatalogList with the
+ * A–Z rail beside it:
  *   - A–Z and Author: an index heading per section, then its books
  *   - Series: a fanned SeriesStack per series (tap to expand); standalone books listed plainly
  *   - Gifted: a heading per giver, with a pen to rename them on all their books
- * Pulling the list down (or the empty catalog) runs `refreshControl`, when given.
+ * Pulling the list down (or the empty card) runs `refreshControl`, when given.
  * Grouping rules live in CatalogGrouping; rail math lives in AlphabetRail.
  */
-import { ReactElement, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { ComponentProps, ReactElement, useState } from "react";
 import { RefreshControlProps, ScrollView, View } from "react-native";
 import { Book } from "../../domain";
 import { Catalog, CatalogMode, CatalogSection } from "../model/catalog";
-import { styles } from "../styles/ownedCatalog.styles";
+import { styles } from "../styles/groupedCatalog.styles";
 import { BookCard } from "./BookCard";
 import { CatalogList, LetterSection, SectionHeading } from "./CatalogList";
 import { EmptyShelf } from "./EmptyShelf";
@@ -20,46 +22,52 @@ import { Reveal } from "./Reveal";
 import { SegmentedControl } from "./SegmentedControl";
 import { SeriesStack } from "./SeriesStack";
 
-const MODE_SEGMENTS = Catalog.groupings.map((grouping) => ({
-  key: grouping.mode,
-  label: grouping.label,
-}));
+/** What an empty shelf says, and the button it offers (Wanted: scan a book). */
+type EmptyCard = {
+  iconName: ComponentProps<typeof Ionicons>["name"];
+  title: string;
+  message: string;
+  action?: { label: string; onPress: () => void };
+};
 
 // The line under a book's title in the catalog: its series.
 const seriesOf = (book: Book) => book.series.trim() || "Standalone";
 
-export function OwnedCatalog({
+export function GroupedCatalog({
   books,
+  modes,
   mode,
+  empty,
   onMode,
   onOpen,
   onRenameGiver,
   refreshControl,
 }: {
   books: Book[];
+  modes: CatalogMode[];
   mode: CatalogMode;
+  empty: EmptyCard;
   onMode: (mode: CatalogMode) => void;
   onOpen: (book: Book) => void;
-  onRenameGiver: (name: string) => void;
+  onRenameGiver?: (name: string) => void;
   refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const [openSeries, setOpenSeries] = useState<string | null>(null);
   const sections = Catalog.sections(books, mode);
+  const segments = Catalog.groupings
+    .filter((grouping) => modes.includes(grouping.mode))
+    .map((grouping) => ({ key: grouping.mode, label: grouping.label }));
 
-  // Nothing to list: no owned books at all, or none in this grouping (no gifts yet).
+  // Nothing to list: no books on the shelf at all, or none in this grouping (no gifts yet).
   if (sections.length === 0) {
-    const { empty } = Catalog.grouping(mode);
+    const card: EmptyCard =
+      books.length === 0 ? empty : { iconName: "gift-outline", ...Catalog.grouping(mode).empty };
     return (
       <View style={styles.wrap}>
-        <SegmentedControl segments={MODE_SEGMENTS} selected={mode} onSelect={onMode} />
+        <SegmentedControl segments={segments} selected={mode} onSelect={onMode} />
         {/* Scrollable even when empty, so it can be pulled down to sync. */}
         <ScrollView refreshControl={refreshControl} showsVerticalScrollIndicator={false}>
-          <EmptyShelf
-            iconName={mode === "gifts" ? "gift-outline" : "library-outline"}
-            title={books.length === 0 ? Catalog.groupings[0].empty.title : empty.title}
-            message={books.length === 0 ? Catalog.groupings[0].empty.message : empty.message}
-            style={styles.empty}
-          />
+          <EmptyShelf {...card} style={styles.empty} />
         </ScrollView>
       </View>
     );
@@ -67,7 +75,7 @@ export function OwnedCatalog({
 
   return (
     <View style={styles.wrap}>
-      <SegmentedControl segments={MODE_SEGMENTS} selected={mode} onSelect={onMode} />
+      <SegmentedControl segments={segments} selected={mode} onSelect={onMode} />
       <CatalogList
         sections={sections}
         resetKey={mode}
@@ -86,7 +94,11 @@ export function OwnedCatalog({
               onOpen={onOpen}
               meta={seriesOf}
               // In Gifted, each section is one giver: the pen renames them on all their books.
-              onEdit={mode === "gifts" ? () => onRenameGiver(section.data[0]?.giftedBy ?? "") : undefined}
+              onEdit={
+                mode === "gifts" && onRenameGiver
+                  ? () => onRenameGiver(section.data[0]?.giftedBy ?? "")
+                  : undefined
+              }
             />
           )
         }

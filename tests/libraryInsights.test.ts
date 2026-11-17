@@ -91,6 +91,17 @@ test("each Account tile opens the list it counts", async () => {
   model.dispose();
 });
 
+test("Wanted has its own grouping switch (A–Z, Author, Series), separate from Owned's", async () => {
+  const model = new LibraryAppModel(async () => controllerFor(), new FakeDevices());
+  await model.start();
+  model.setWantedMode("author");
+  model.setCatalogMode("series");
+  expect(model.getState()).toMatchObject({ wantedMode: "author", catalogMode: "series" });
+  model.setWantedMode("gifts"); // a wanted book isn't yours yet: no Gifted grouping
+  expect(model.getState().wantedMode).toBe("author");
+  model.dispose();
+});
+
 describe("Renaming a giver (the pen in the Gifted list)", () => {
   test("renames them on every book they gave, matched without case; a blank name is refused", async () => {
     const repository = new MemoryBookRepository();

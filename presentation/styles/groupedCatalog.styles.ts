@@ -1,4 +1,4 @@
-/** Styles for OwnedCatalog (its frame and empty card; the list itself is CatalogList's). */
+/** Styles for GroupedCatalog (its frame and empty card; the list itself is CatalogList's). */
 import { StyleSheet } from "react-native";
 import { space } from "./theme";
 

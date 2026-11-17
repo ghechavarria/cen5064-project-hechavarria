@@ -14,8 +14,8 @@ export type CatalogSection = { title: string; data: Book[]; letter: string };
 export abstract class CatalogGrouping {
   abstract readonly mode: CatalogMode;
   abstract readonly label: string;
-  // Shown when no book belongs in this grouping.
-  readonly empty = { title: "No owned books yet", message: "Scan an ISBN onto Owned to fill this catalog." };
+  // Shown when the shelf has books but none belong in this grouping (only Gifted narrows).
+  readonly empty = { title: "Nothing here yet", message: "No book on this shelf fits this grouping." };
 
   protected abstract sectionOf(book: Book): string;
 

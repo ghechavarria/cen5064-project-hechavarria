@@ -73,7 +73,8 @@ export type AppState = {
   tab: MenuTab;
   screen: Screen;
   reading: ReadingStatus;
-  catalogMode: CatalogMode;
+  catalogMode: CatalogMode; // the Owned tab's grouping
+  wantedMode: CatalogMode; // the Wanted tab's grouping (A–Z, Author or Series)
   selectedIsbn: string | null;
   isbnDraft: string;
   giftName: string;
@@ -85,6 +86,10 @@ export type AppState = {
 
 /** What the Rename popup would do, worded for it; `to` is the name the books will carry. */
 type RenamePlan = { title: string; body: string; note: string; action: string; canSave: boolean; to: string };
+
+/** The groupings each catalog tab offers. */
+export const OWNED_MODES: CatalogMode[] = ["az", "author", "series", "gifts"];
+export const WANTED_MODES: CatalogMode[] = ["az", "author", "series"];
 
 const TAB_HEADINGS: Record<MenuTab, string> = {
   tbr: "To be read",
@@ -119,6 +124,7 @@ export class LibraryAppModel extends Observable<AppState> {
       screen: "main",
       reading: ReadingStatus.UNREAD,
       catalogMode: "az",
+      wantedMode: "az",
       selectedIsbn: null,
       isbnDraft: "",
       giftName: "",
@@ -267,17 +273,10 @@ export class LibraryAppModel extends Observable<AppState> {
     return screen === "detail" ? "detail" : tab;
   }
 
-  /** TBR and Wanted are plain book lists: which books, and what to say when there are none. */
+  /** TBR is a plain A–Z list of the owned books for the reading switch; null on other pages. */
   get bookList(): { books: Book[]; empty: string } | null {
     const { view, reading } = this.getState();
-    switch (this.page) {
-      case "tbr":
-        return { books: view.toBeRead(reading), empty: "Scan an ISBN onto Owned." };
-      case "wanted":
-        return { books: view.wanted, empty: "Scan an ISBN onto Wanted." };
-      default:
-        return null;
-    }
+    return this.page === "tbr" ? { books: view.toBeRead(reading), empty: "Scan an ISBN onto Owned." } : null;
   }
 
   /** TBR's Unread / Read switch, with a count on each side. */
@@ -387,6 +386,15 @@ export class LibraryAppModel extends Observable<AppState> {
   showGifts(): void {
     this.selectTab("owned");
     this.setCatalogMode("gifts");
+  }
+
+  /** Wanted's grouping switch; it has no Gifted (a wanted book isn't yours yet). */
+  setWantedMode(wantedMode: CatalogMode): void {
+    if (!WANTED_MODES.includes(wantedMode)) {
+      return;
+    }
+    this.tickIfChanged(wantedMode, this.getState().wantedMode);
+    this.setState({ wantedMode });
   }
 
   setCatalogMode(catalogMode: CatalogMode): void {

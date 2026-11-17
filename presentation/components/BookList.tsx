@@ -1,6 +1,6 @@
 /**
- * Component: BookList — To be read or Wanted: the books under A–Z index
- * headings in a CatalogList, with the A–Z rail on the right like every list.
+ * Component: BookList — To be read: the books under A–Z index headings in a
+ * CatalogList, with the A–Z rail on the right like every list.
  * Empty, an EmptyShelf card that offers to scan (still pullable, to sync).
  */
 import { ReactElement } from "react";

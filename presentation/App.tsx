@@ -25,7 +25,7 @@ import { IsbnCamera } from "./components/IsbnCamera";
 import { LibraryPrompts } from "./components/LibraryPrompts";
 import { Logo } from "./components/Logo";
 import { MenuBar } from "./components/MenuBar";
-import { OwnedCatalog } from "./components/OwnedCatalog";
+import { GroupedCatalog } from "./components/GroupedCatalog";
 import { PullToSync } from "./components/PullToSync";
 import { ScanForm } from "./components/ScanForm";
 import { ScreenHeader } from "./components/ScreenHeader";
@@ -33,7 +33,7 @@ import { SegmentedControl } from "./components/SegmentedControl";
 import { BrowserDevices } from "./device/browserDevices";
 import { PhoneDevices } from "./device/phoneDevices";
 import { AccountModel } from "./model/accountModel";
-import { LibraryAppModel } from "./model/libraryAppModel";
+import { LibraryAppModel, OWNED_MODES, WANTED_MODES } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
 import { useObservable } from "./model/useObservable";
 import { belowStatusBar, styles } from "./styles/app.styles";
@@ -167,16 +167,37 @@ function LibraryScreen() {
               />
             </View>
           ) : page === "owned" ? (
-            <OwnedCatalog
+            <GroupedCatalog
               books={state.view.owned}
+              modes={OWNED_MODES}
               mode={state.catalogMode}
+              empty={{
+                iconName: "library-outline",
+                title: "No owned books yet",
+                message: "Scan an ISBN onto Owned to fill this catalog.",
+              }}
               onMode={(mode) => model.setCatalogMode(mode)}
               onOpen={openBook}
               onRenameGiver={(name) => model.askRenameGiver(name)}
               refreshControl={pullToSync}
             />
+          ) : page === "wanted" ? (
+            <GroupedCatalog
+              books={state.view.wanted}
+              modes={WANTED_MODES}
+              mode={state.wantedMode}
+              empty={{
+                iconName: "leaf-outline",
+                title: "The shelf is quiet",
+                message: "Scan an ISBN onto Wanted.",
+                action: { label: "Scan a book", onPress: () => model.selectTab("scan") },
+              }}
+              onMode={(mode) => model.setWantedMode(mode)}
+              onOpen={openBook}
+              refreshControl={pullToSync}
+            />
           ) : bookList ? (
-            // To be read and Wanted: A–Z with the rail, like Owned.
+            // To be read: A–Z with the rail, like Owned and Wanted.
             <BookList
               books={bookList.books}
               empty={bookList.empty}

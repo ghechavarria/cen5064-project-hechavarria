@@ -1,4 +1,4 @@
-/** Styles for BookList (To be read and Wanted: the list's frame, and its empty card). */
+/** Styles for BookList (To be read: the list's frame, and its empty card). */
 import { StyleSheet } from "react-native";
 import { space } from "./theme";
 
