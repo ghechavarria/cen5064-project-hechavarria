@@ -15,7 +15,7 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.outline,
-    ...softShadow,
+    // No glow around the dock: it sits quietly, and only Scan's circle glows.
   },
   // The pill under the chosen tab, with a short mint bar along its top edge.
   indicator: {

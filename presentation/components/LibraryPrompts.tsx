@@ -7,16 +7,19 @@ import { AppState, LibraryAppModel } from "../model/libraryAppModel";
 import { Labels } from "../model/labels";
 import { PromptActions } from "../model/promptActions";
 import { CoverPicker } from "./CoverPicker";
-import { PromptModal } from "./PromptModal";
+import { PromptHost, PromptModal } from "./PromptModal";
 
 export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state: AppState }) {
   const { prompt, giftName } = state;
+  const renamePlan = model.renamePlan;
   const draft = prompt?.kind === "scanConfirm" ? prompt.draft : null;
   // Every choice popup can be backed out of (phones have no Escape key or back gesture for modals).
   // During a scan that means "Nothing added"; during a move, nothing changes.
   const cancel = () => model.cancelPrompt();
+  // One host for every popup: going from one popup to the next keeps the overlay
+  // and only swaps the sheet.
   return (
-    <>
+    <PromptHost visible={prompt !== null} onRequestClose={cancel}>
       {/* Scan step 1: is this the book? Pick the cover that matches your copy. */}
       <PromptModal
         visible={draft !== null}
@@ -37,7 +40,6 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
                 .join("\n")
             : undefined
         }
-        onRequestClose={cancel}
         actions={[
           { label: "This is the book", onPress: () => model.confirmScan() },
           { label: "Not this book", tone: "secondary", onPress: cancel },
@@ -58,7 +60,6 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         visible={prompt?.kind === "format"}
         title="Hardcover or paperback?"
         body="Your book sources didn't say which binding this copy has."
-        onRequestClose={cancel}
         actions={PromptActions.choices(
           [BookFormat.HARDCOVER, BookFormat.PAPERBACK],
           Labels.format,
@@ -72,7 +73,6 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         visible={prompt?.kind === "scanShelf"}
         title="Where should it go?"
         body="Nothing is saved until you choose a shelf."
-        onRequestClose={cancel}
         actions={PromptActions.choices(
           [Shelf.OWNED, Shelf.WANTED],
           Labels.shelf,
@@ -86,7 +86,6 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         visible={prompt?.kind === "acquire"}
         title="How did you get it?"
         body={prompt?.kind === "acquire" ? prompt.body : undefined}
-        onRequestClose={cancel}
         actions={[
           { label: "Purchased", onPress: () => model.choosePurchased() },
           { label: "Gifted", tone: "secondary", onPress: () => model.chooseGifted() },
@@ -103,10 +102,10 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
           placeholder: "Name",
           value: giftName,
           onChangeText: (text) => model.setGiftName(text),
+          choices: { label: "Gifted before", ...model.giverChoices },
         }}
-        onRequestClose={cancel}
         actions={[
-          { label: "Continue", onPress: () => model.continueGift() },
+          { label: "Continue", onPress: () => model.continueGift(), disabled: giftName.trim() === "" },
           PromptActions.cancel(cancel),
         ]}
       />
@@ -116,13 +115,34 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         visible={prompt?.kind === "reading"}
         title="Have you read it?"
         body={prompt?.kind === "reading" ? prompt.body : undefined}
-        onRequestClose={cancel}
         actions={PromptActions.choices(
           [ReadingStatus.UNREAD, ReadingStatus.READ],
           Labels.readingTitle,
           (status) => model.chooseReading(status),
           cancel,
         )}
+      />
+
+      {/* Rename a giver on every book they gave (the pen in the Gifted list). The
+          button says what will happen: Rename, or Combine with someone already listed. */}
+      <PromptModal
+        visible={renamePlan !== null}
+        title={renamePlan?.title ?? "Rename"}
+        body={renamePlan?.body}
+        input={{
+          placeholder: "Name",
+          value: giftName,
+          onChangeText: (text) => model.setGiftName(text),
+        }}
+        note={renamePlan?.note ?? ""}
+        actions={[
+          {
+            label: renamePlan?.action ?? "Rename",
+            onPress: () => void model.confirmRenameGiver(),
+            disabled: !renamePlan?.canSave,
+          },
+          PromptActions.cancel(cancel),
+        ]}
       />
 
       {/* Delete confirmation */}
@@ -134,12 +154,11 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
             ? `Remove ${prompt.book.title} from your library? This deletes every copy.`
             : undefined
         }
-        onRequestClose={cancel}
         actions={[
           { label: "Delete", tone: "danger", onPress: () => void model.confirmDelete() },
           { label: "Keep it", tone: "secondary", onPress: cancel },
         ]}
       />
-    </>
+    </PromptHost>
   );
 }

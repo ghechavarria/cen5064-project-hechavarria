@@ -28,6 +28,7 @@ export type AccountState = {
   busy: boolean;
   notice: { text: string; tone: "info" | "danger" } | null;
   sync: SyncStatus;
+  lastSynced: number | null; // when a sync last finished, on this device's clock
 };
 
 type Listener<T> = (value: T) => void;
@@ -46,6 +47,7 @@ export class AccountModel extends Observable<AccountState> {
   constructor(
     private readonly openUseCases: () => Promise<AccountUseCases>,
     private readonly deviceOwnerId = "local",
+    private readonly clock: () => number = Date.now,
   ) {
     super({
       ready: false,
@@ -57,6 +59,7 @@ export class AccountModel extends Observable<AccountState> {
       busy: false,
       notice: null,
       sync: "off",
+      lastSynced: null,
     });
   }
 
@@ -193,6 +196,17 @@ export class AccountModel extends Observable<AccountState> {
     return this.syncing;
   }
 
+  /**
+   * Also syncs every `ms` until the returned function is called: a safety net
+   * for a Realtime notice that never arrived (a browser slows the timers of a
+   * tab in the background, and its connection can drop unnoticed). With
+   * incremental sync, a check that finds nothing is one small request.
+   */
+  syncEvery(ms: number): () => void {
+    const timer = setInterval(() => void this.sync(), ms);
+    return () => clearInterval(timer);
+  }
+
   // --- Private helpers ---
 
   // Sign-in and sign-up both end here: move this phone's books into the
@@ -201,7 +215,7 @@ export class AccountModel extends Observable<AccountState> {
     this.setState({ sync: "syncing", password: "" });
     try {
       await useCases.sync.signedIn(account.id, this.deviceOwnerId);
-      this.setState({ sync: "synced" });
+      this.setState({ sync: "synced", lastSynced: this.clock() });
     } catch (error) {
       this.setState({ sync: "waiting" });
       if (!(error instanceof SyncUnavailableError)) {
@@ -222,7 +236,7 @@ export class AccountModel extends Observable<AccountState> {
       this.setState({ sync: "syncing" });
       try {
         const report = await useCases.sync.execute(account.id);
-        this.setState({ sync: "synced" });
+        this.setState({ sync: "synced", lastSynced: this.clock() });
         if (report.downloaded > 0) {
           this.libraryListeners.forEach((listener) => listener());
         }
@@ -234,7 +248,7 @@ export class AccountModel extends Observable<AccountState> {
   }
 
   private become(account: Account | null): void {
-    this.setState({ account, sync: account ? this.getState().sync : "off" });
+    this.setState(account ? { account } : { account, sync: "off", lastSynced: null });
     this.watchBackup();
     this.ownerListeners.forEach((listener) => listener(this.ownerId));
   }

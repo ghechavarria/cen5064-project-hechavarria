@@ -48,7 +48,29 @@ export class Labels {
       { label: "ISBN", value: book.isbn },
       { label: "Copies", value: String(book.copyCount) },
       { label: "Acquired", value: book.acquisition?.describe() ?? "" },
+      { label: "Added", value: book.addedAt === null ? "" : Labels.day(book.addedAt) },
     ].filter((fact) => fact.value.trim() !== "");
+  }
+
+  // A book's subjects as readable topics: catalog tags like "serie:Once_Upon_a_Broken_Heart"
+  // are dropped (the series is shown above), underscores become spaces, repeats go.
+  static subjectList(subjects: string): string[] {
+    const seen = new Set<string>();
+    return subjects
+      .split(",")
+      .map((subject) => subject.replace(/_/g, " ").replace(/\s+/g, " ").trim())
+      .filter((subject) => {
+        const key = subject.toLowerCase();
+        if (subject === "" || subject.includes(":") || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  }
+
+  static subjects(book: Book): string {
+    return Labels.subjectList(book.subjects).join(", ");
   }
 
   // The description, unless it's missing or an old "Source title: …" placeholder.
@@ -62,5 +84,18 @@ export class Labels {
   // count(1, "title") → "1 title"; count(2, "copy", "copies") → "2 copies".
   static count(count: number, singular: string, plural = `${singular}s`): string {
     return `${count} ${count === 1 ? singular : plural}`;
+  }
+
+  // A calendar day in the device's language: "November 7, 2026".
+  static day(time: number): string {
+    return new Date(time).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  // When something happened, as close as is useful: "Today at 7:14 PM", or "Nov 7 at 7:14 PM".
+  static moment(time: number, now: number): string {
+    const at = new Date(time);
+    const clock = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const sameDay = at.toDateString() === new Date(now).toDateString();
+    return `${sameDay ? "Today" : at.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at ${clock}`;
   }
 }

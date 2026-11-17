@@ -9,6 +9,7 @@ import { JsonBookRepository, MemoryBookRepository } from "./data/bookRepository"
 import { GoogleBooksIsbnLookup } from "./data/googleBooks";
 import { CachingIsbnLookup, MergedIsbnLookup } from "./data/isbnLookup";
 import { OpenLibraryIsbnLookup } from "./data/openLibrary";
+import { ServerClock } from "./data/serverClock";
 import { SupabaseConnection } from "./data/supabase";
 import { SupabaseAccounts, UnconfiguredAccounts } from "./data/supabaseAccounts";
 import { SupabaseLibraryBackup, UnconfiguredLibraryBackup } from "./data/supabaseBackup";
@@ -35,10 +36,12 @@ export type AppServices = { library: UseCases; account: AccountUseCases };
 
 export class CompositionRoot {
   static async open(): Promise<AppServices> {
-    const store = await CompositionRoot.openStore();
+    // Changes are stamped with the server's time once Supabase has answered (ADR-013).
+    const clock = new ServerClock();
+    const store = await CompositionRoot.openStore(clock);
     // Decorators: the sources are merged, then cached in the device store.
     const lookup = new CachingIsbnLookup(new MergedIsbnLookup(CompositionRoot.bookSources()), store);
-    return { library: new UseCases(store, lookup), account: CompositionRoot.accountUseCases(store) };
+    return { library: new UseCases(store, lookup), account: CompositionRoot.accountUseCases(store, clock) };
   }
 
   // Best source first. Google Books joins only when a key is configured
@@ -52,13 +55,13 @@ export class CompositionRoot {
   // Accounts use the project named in .env, or else the shared one (ADR-012).
   // If neither gives a URL and key, the Null Objects stand in: nobody can sign
   // in, and the app keeps the library on this device only.
-  private static accountUseCases(store: LocalStore): AccountUseCases {
+  private static accountUseCases(store: LocalStore, clock: ServerClock): AccountUseCases {
     const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || SHARED_SUPABASE.url;
     const publicKey = process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() || SHARED_SUPABASE.publicKey;
     if (!url || !publicKey) {
       return new AccountUseCases(new UnconfiguredAccounts(), store, store, new UnconfiguredLibraryBackup());
     }
-    const connection = SupabaseConnection.open(url, publicKey);
+    const connection = SupabaseConnection.open(url, publicKey, clock);
     if (Platform.OS !== "web") {
       AppState.addEventListener("change", (state) => connection.keepSessionFresh(state === "active"));
     }
@@ -71,21 +74,21 @@ export class CompositionRoot {
   }
 
   // Phones use SQLite (imported lazily so web bundles never load expo-sqlite).
-  private static async openStore(): Promise<LocalStore> {
+  private static async openStore(clock: ServerClock): Promise<LocalStore> {
     if (Platform.OS === "web") {
-      return CompositionRoot.browserStore();
+      return CompositionRoot.browserStore(clock);
     }
     try {
-      return await (await import("./data/sqliteRepository")).SqliteBookRepository.open();
+      return await (await import("./data/sqliteRepository")).SqliteBookRepository.open(clock.now);
     } catch {
-      return CompositionRoot.browserStore();
+      return CompositionRoot.browserStore(clock);
     }
   }
 
   // Browser localStorage when there is one; otherwise memory only.
-  private static browserStore(): LocalStore {
+  private static browserStore(clock: ServerClock): LocalStore {
     return typeof globalThis.localStorage !== "undefined"
-      ? new JsonBookRepository(globalThis.localStorage)
-      : new MemoryBookRepository();
+      ? new JsonBookRepository(globalThis.localStorage, clock.now)
+      : new MemoryBookRepository(clock.now);
   }
 }

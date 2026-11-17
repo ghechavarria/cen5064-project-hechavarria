@@ -59,25 +59,50 @@ export interface BookRepository {
  */
 export type BookVersion = { book: Book; updatedAt: number; deletedAt: number | null };
 
-/** The local store's sync side: every version for an owner, tombstones included. */
+/**
+ * The local store's sync side (ADR-012, ADR-013). Besides every version, it
+ * knows which ones changed on this phone and haven't reached the backup yet,
+ * and the backup's cursor from the last sync, so a sync sends and fetches only
+ * what changed.
+ */
 export interface SyncStore {
+  // Every version for an owner, tombstones included (the full sync compares these).
   versions(ownerId: string): Promise<BookVersion[]>;
-  // Stores each version as given (timestamps kept, not renewed), but only where
-  // it is newer than the stored copy of that book.
-  applyVersions(ownerId: string, versions: BookVersion[]): Promise<void>;
+  // The versions saved or deleted on this phone since they were last sent.
+  unsentVersions(ownerId: string): Promise<BookVersion[]>;
+  // Stores each version as given (timestamps kept, not renewed, and counted as
+  // already sent), but only where it is newer than the stored copy of that book.
+  // Returns how many were stored.
+  applyVersions(ownerId: string, versions: BookVersion[]): Promise<number>;
+  // These versions reached the backup. A book changed again since stays unsent.
+  markSent(ownerId: string, versions: BookVersion[]): Promise<void>;
+  // The backup cursor saved by the last sync of this owner; null before the first.
+  syncCursor(ownerId: string): Promise<number | null>;
+  saveSyncCursor(ownerId: string, cursor: number): Promise<void>;
 }
+
+/**
+ * What a pull brings back: the versions, and the cursor to pass next time to
+ * get only what changed after them (null when the backup holds nothing yet).
+ */
+export type BackupChanges = { versions: BookVersion[]; cursor: number | null };
 
 /** The account's copy of the library, kept outside the phone. */
 export interface LibraryBackup {
-  pull(ownerId: string): Promise<BookVersion[]>;
+  // Every version when `since` is null; otherwise those stored after that cursor
+  // (a few already seen may come again, which applyVersions ignores).
+  pull(ownerId: string, since: number | null): Promise<BackupChanges>;
   push(ownerId: string, versions: BookVersion[]): Promise<void>;
   // Calls onChange whenever this account's backup changes (another phone
   // synced), so this phone can sync at once. Returns a function that stops it.
   watch(ownerId: string, onChange: () => void): () => void;
 }
 
-/** A signed-in account; its id is the ownerId of its books. */
-export type Account = { id: string; email: string };
+/**
+ * A signed-in account; its id is the ownerId of its books. `createdAt` is when
+ * the account was created (milliseconds since 1970), or null if not known.
+ */
+export type Account = { id: string; email: string; createdAt: number | null };
 
 /** Sign-up and sign-in. `configured` is false when no account service is set up. */
 export interface Accounts {

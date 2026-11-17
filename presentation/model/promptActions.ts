@@ -5,7 +5,7 @@
  */
 export type ButtonTone = "primary" | "secondary" | "danger" | "dangerOutline";
 
-export type PromptAction = { label: string; tone?: ButtonTone; onPress: () => void };
+export type PromptAction = { label: string; tone?: ButtonTone; onPress: () => void; disabled?: boolean };
 
 export class PromptActions {
   static choices<Option>(

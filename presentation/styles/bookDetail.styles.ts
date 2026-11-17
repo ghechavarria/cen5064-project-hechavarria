@@ -27,6 +27,8 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.outline,
   },
+  editable: { flexDirection: "row", alignItems: "baseline", gap: space.sm, flexShrink: 1 },
+  editLink: { ...text.ui, fontSize: font.small, color: theme.glow },
   factLabel: { ...text.ui, color: theme.muted, fontSize: font.small },
   factValue: { ...text.strong, ...text.tabular, color: theme.ink, fontSize: font.small, flexShrink: 1, textAlign: "right" },
   body: text.body,

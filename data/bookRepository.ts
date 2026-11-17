@@ -7,11 +7,25 @@ import { Book, PersonalLibrary } from "../domain";
 import { BookMetadata, BookRepository, BookVersion, IsbnCache, SyncStore } from "../service/ports";
 import { BookRow, BookRowMapper, StoredRow } from "./bookRowMapper";
 
-/** Everything the memory store holds; JSON saves exactly this. */
-type Snapshot = { books: BookRow[]; isbnCache: Record<string, BookMetadata> };
+/**
+ * Everything the memory store holds; JSON saves exactly this. `unsent` lists the
+ * books (owner and ISBN) changed here and not yet sent to the backup;
+ * `syncCursors` holds each owner's backup cursor (ADR-013).
+ */
+type Snapshot = {
+  books: BookRow[];
+  isbnCache: Record<string, BookMetadata>;
+  unsent: string[];
+  syncCursors: Record<string, number>;
+};
 
 /** A snapshot as read back from storage: possibly from an older build, possibly damaged. */
-type StoredSnapshot = { books?: StoredRow[]; isbnCache?: Snapshot["isbnCache"] };
+type StoredSnapshot = {
+  books?: StoredRow[];
+  isbnCache?: Snapshot["isbnCache"];
+  unsent?: unknown;
+  syncCursors?: unknown;
+};
 
 /** Milliseconds since 1970; injectable so tests control the sync timestamps. */
 export type Clock = () => number;
@@ -23,11 +37,13 @@ export type Clock = () => number;
 export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStore {
   private books: BookRow[] = [];
   private isbnCache: Record<string, BookMetadata> = {};
+  private unsent = new Set<string>();
+  private syncCursors: Record<string, number> = {};
 
   constructor(private readonly clock: Clock = Date.now) {}
 
   dump(): Snapshot {
-    return { books: this.books, isbnCache: this.isbnCache };
+    return { books: this.books, isbnCache: this.isbnCache, unsent: [...this.unsent], syncCursors: this.syncCursors };
   }
 
   // Rows and cache entries saved by older builds get today's defaults; rows too
@@ -40,6 +56,12 @@ export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStor
     const cache = snapshot.isbnCache && typeof snapshot.isbnCache === "object" ? snapshot.isbnCache : {};
     this.isbnCache = Object.fromEntries(
       Object.entries(cache).map(([isbn, metadata]) => [isbn, BookRowMapper.metadataWithDefaults(metadata)]),
+    );
+    // Saves from before incremental sync have neither: the first sync is then a full one.
+    this.unsent = new Set(Array.isArray(snapshot.unsent) ? snapshot.unsent.filter((key) => typeof key === "string") : []);
+    const cursors = snapshot.syncCursors && typeof snapshot.syncCursors === "object" ? snapshot.syncCursors : {};
+    this.syncCursors = Object.fromEntries(
+      Object.entries(cursors).filter((entry): entry is [string, number] => Number.isFinite(entry[1])),
     );
   }
 
@@ -68,6 +90,7 @@ export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStor
   // Insert, or replace the row with the same owner and ISBN (reviving a deleted one).
   async save(ownerId: string, book: Book): Promise<Book> {
     this.put(BookRowMapper.toRow(ownerId, book, this.clock()));
+    this.unsent.add(MemoryBookRepository.key(ownerId, book.isbn));
     return book;
   }
 
@@ -77,6 +100,7 @@ export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStor
     if (row && row.deletedAt === null) {
       const now = this.clock();
       this.put({ ...row, updatedAt: now, deletedAt: now });
+      this.unsent.add(MemoryBookRepository.key(ownerId, isbn));
     }
   }
 
@@ -86,13 +110,44 @@ export class MemoryBookRepository implements BookRepository, IsbnCache, SyncStor
 
   // A version replaces the stored row only if it is newer, so a change made
   // while a sync was running is never overwritten by an older copy.
-  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+  async applyVersions(ownerId: string, versions: BookVersion[]): Promise<number> {
+    let applied = 0;
     for (const version of versions) {
       const stored = this.find(ownerId, version.book.isbn);
       if (!stored || version.updatedAt > stored.updatedAt) {
         this.put(BookRowMapper.fromVersion(ownerId, version));
+        this.unsent.delete(MemoryBookRepository.key(ownerId, version.book.isbn));
+        applied += 1;
       }
     }
+    return applied;
+  }
+
+  async unsentVersions(ownerId: string): Promise<BookVersion[]> {
+    return this.books
+      .filter((row) => row.ownerId === ownerId && this.unsent.has(MemoryBookRepository.key(ownerId, row.isbn)))
+      .map(BookRowMapper.toVersion);
+  }
+
+  // Only where the stored row is still the version that was sent.
+  async markSent(ownerId: string, versions: BookVersion[]): Promise<void> {
+    for (const version of versions) {
+      if (this.find(ownerId, version.book.isbn)?.updatedAt === version.updatedAt) {
+        this.unsent.delete(MemoryBookRepository.key(ownerId, version.book.isbn));
+      }
+    }
+  }
+
+  async syncCursor(ownerId: string): Promise<number | null> {
+    return this.syncCursors[ownerId] ?? null;
+  }
+
+  async saveSyncCursor(ownerId: string, cursor: number): Promise<void> {
+    this.syncCursors[ownerId] = cursor;
+  }
+
+  private static key(ownerId: string, isbn: string): string {
+    return `${ownerId}\u0000${isbn}`;
   }
 
   private find(ownerId: string, isbn: string): BookRow | undefined {
@@ -169,8 +224,24 @@ export class JsonBookRepository implements BookRepository, IsbnCache, SyncStore 
     return this.read(() => this.memory.versions(ownerId));
   }
 
-  applyVersions(ownerId: string, versions: BookVersion[]): Promise<void> {
+  unsentVersions(ownerId: string): Promise<BookVersion[]> {
+    return this.read(() => this.memory.unsentVersions(ownerId));
+  }
+
+  applyVersions(ownerId: string, versions: BookVersion[]): Promise<number> {
     return this.write(() => this.memory.applyVersions(ownerId, versions));
+  }
+
+  markSent(ownerId: string, versions: BookVersion[]): Promise<void> {
+    return this.write(() => this.memory.markSent(ownerId, versions));
+  }
+
+  syncCursor(ownerId: string): Promise<number | null> {
+    return this.read(() => this.memory.syncCursor(ownerId));
+  }
+
+  saveSyncCursor(ownerId: string, cursor: number): Promise<void> {
+    return this.write(() => this.memory.saveSyncCursor(ownerId, cursor));
   }
 
   // Every read first makes sure storage has been loaded.

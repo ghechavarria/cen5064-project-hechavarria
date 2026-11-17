@@ -9,15 +9,19 @@ import { fonts } from "./fonts";
 export const theme = {
   bg: "#050E1C",
   surface: "#0C1A2E", // inputs, cover placeholders
-  card: "#12243C", // sheets and the menu dock (solid, so Android shadows draw cleanly)
-  glass: "rgba(9,20,38,0.86)", // book cards: dark glass with the forest faintly behind
-  panel: "rgba(18,36,60,0.82)", // a see-through card over the forest art
+  card: "#12243C", // the menu dock and a focused field (solid, so Android shadows draw cleanly)
+  glass: "rgba(9,20,38,0.86)", // every card and panel: dark glass with the forest faintly behind
+  night: "#091426", // the same dark blue, solid: popup sheets, so nothing shows through their text
   ink: "#E8F0F4", // main text
   muted: "#B7C9D6", // secondary text
   glow: "#7EF0E0", // primary actions, focus, selection, icons
   glowSoft: "rgba(126,240,224,0.45)", // the halo behind large titles
   selected: "rgba(126,240,224,0.16)", // the pill behind a chosen tab or segment
   border: "rgba(126,240,224,0.35)", // quiet outlines
+  bloom: "#FF9AD5", // pink mushrooms: the To read count and the reading ring (8.1:1 on the panel)
+  bloomSoft: "rgba(176,124,240,0.18)", // the reading ring's empty track
+  bloomDeep: "#9B6BF2", // the purple start of the reading ring
+  bloomGlow: "rgba(255,154,213,0.6)", // the glow around the ring's percentage
   danger: "#B5473A", // filled destructive button (light text on it passes contrast)
   dangerInk: "#F2917F", // destructive text and outlines on dark surfaces
   overlay: "rgba(5,14,28,0.78)",
@@ -86,7 +90,7 @@ export const scrim = {
 
 /** A see-through card for content sitting directly on the forest art. */
 export const panelSurface = {
-  backgroundColor: theme.panel,
+  backgroundColor: theme.glass,
   borderRadius: radius.xl,
   borderWidth: StyleSheet.hairlineWidth,
   borderColor: theme.outline,

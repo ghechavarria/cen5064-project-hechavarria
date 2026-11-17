@@ -2,7 +2,8 @@
  * Presentation model: AlphabetRail — the math behind the catalog's A–Z
  * scrubber: which letter a finger is on, where that letter sits (for the
  * bubble), and which section it jumps to. Works for every grouping, because a
- * section's letter is the first letter of its title (a letter, an author, or a series).
+ * section carries its own letter (the first letter of its heading, or of the
+ * giver's name in Gifted, where every heading starts "From").
  */
 import { Catalog, CatalogSection } from "./catalog";
 
@@ -30,14 +31,14 @@ export class AlphabetRail {
 
   // Letters that have at least one section; the rest are drawn dimmed.
   static lettersIn(sections: CatalogSection[]): Set<string> {
-    return new Set(sections.map((section) => Catalog.letterOf(section.title)));
+    return new Set(sections.map((section) => section.letter));
   }
 
   // The first section starting with the letter; if there is none, the last one
   // before it (so "C" with no C books lands on "B").
   static sectionFor(letter: string, sections: CatalogSection[]): number {
     const target = LETTERS.indexOf(letter);
-    const position = (section: CatalogSection) => LETTERS.indexOf(Catalog.letterOf(section.title));
+    const position = (section: CatalogSection) => LETTERS.indexOf(section.letter);
     const exact = sections.findIndex((section) => position(section) === target);
     if (exact >= 0) {
       return exact;

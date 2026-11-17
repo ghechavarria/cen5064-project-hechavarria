@@ -3,7 +3,7 @@
  * inside the rounded corners); iOS and web spring the surface in slightly
  * (0.96, the native-feeling amount). Lists rise into place with a short stagger.
  */
-import { Animated, Platform, StyleSheet } from "react-native";
+import { Animated, Easing, Platform, StyleSheet } from "react-native";
 import { theme } from "./theme";
 
 const android = Platform.OS === "android";
@@ -45,6 +45,90 @@ export const reveal = {
   useNativeDriver,
 };
 
+// A long, soft settle (fast at first, then drifting to rest): the app's "ethereal" ease.
+const drift = Easing.bezier(0.16, 1, 0.3, 1);
+
+/**
+ * Popup sheets: the new one floats up and grows into place as the old one
+ * fades away beneath it, a beat later, so the two cross like mist.
+ */
+export const sheetMotion = {
+  enter: { duration: 420, delay: 70, easing: drift, useNativeDriver },
+  leave: { duration: 240, easing: Easing.in(Easing.quad), useNativeDriver },
+  // When the last popup closes, its sheet stays until the overlay has faded with it.
+  closeHold: 400,
+};
+
+// 0 → 1 as a sheet arrives; 1 → 0 as it leaves (it then sinks a little, slower than it fades).
+export function sheetEntranceStyle(progress: Animated.Value) {
+  return {
+    opacity: progress,
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [14, 0],
+        }),
+      },
+      {
+        scale: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.95, 1],
+        }),
+      },
+    ],
+  };
+}
+
+// A faint mint halo that blooms behind a sheet as it arrives, then rests softly.
+export function haloStyle(progress: Animated.Value) {
+  return {
+    opacity: progress.interpolate({
+      inputRange: [0, 0.6, 1],
+      outputRange: [0, 0.55, 0.3],
+    }),
+    transform: [
+      {
+        scale: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.85, 1],
+        }),
+      },
+    ],
+  };
+}
+
+/** The Gifted before list opening: it fades in as it drifts down into place. */
+export const listEntrance = { duration: 320, easing: drift, useNativeDriver };
+
+export function listEntranceStyle(progress: Animated.Value) {
+  return {
+    opacity: progress,
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-8, 0],
+        }),
+      },
+    ],
+  };
+}
+
+// The dropdown's chevron turning as it opens (0 → 1) and closes.
+export function chevronTurnStyle(progress: Animated.Value) {
+  return {
+    transform: [
+      {
+        rotate: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["0deg", "180deg"],
+        }),
+      },
+    ],
+  };
+}
+
 export function pressScale(scale: Animated.Value) {
   return { transform: [{ scale }] };
 }
@@ -52,6 +136,13 @@ export function pressScale(scale: Animated.Value) {
 export function revealStyle(progress: Animated.Value) {
   return {
     opacity: progress,
-    transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [reveal.rise, 0] }) }],
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [reveal.rise, 0],
+        }),
+      },
+    ],
   };
 }

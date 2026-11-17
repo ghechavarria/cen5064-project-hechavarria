@@ -14,6 +14,7 @@ import {
   Account,
   AccountError,
   Accounts,
+  BackupChanges,
   BookMetadata,
   BookRepository,
   BookVersion,
@@ -103,6 +104,7 @@ class FakeFeedback implements Feedback {
  * wait for an email; `expire()` ends the session as if from outside the app.
  */
 export class FakeAccounts implements Accounts {
+  static readonly CREATED = Date.UTC(2026, 10, 7, 5, 39, 12); // when the fake account was created
   readonly configured = true;
   readonly calls: string[] = [];
   confirmEmail = false;
@@ -114,14 +116,14 @@ export class FakeAccounts implements Accounts {
   }
   async signUp(email: string, password: string): Promise<Account | null> {
     this.calls.push(`signUp ${email} ${password}`);
-    return this.confirmEmail ? null : this.become({ id: "user-1", email });
+    return this.confirmEmail ? null : this.become({ id: "user-1", email, createdAt: FakeAccounts.CREATED });
   }
   async signIn(email: string, password: string): Promise<Account> {
     this.calls.push(`signIn ${email} ${password}`);
     if (password !== "correct horse") {
       throw new AccountError("That email and password don't match an account.");
     }
-    return this.become({ id: "user-1", email });
+    return this.become({ id: "user-1", email, createdAt: FakeAccounts.CREATED });
   }
   async signOut(): Promise<void> {
     this.calls.push("signOut");
@@ -142,12 +144,17 @@ export class FakeAccounts implements Accounts {
 }
 
 /**
- * Test double for LibraryBackup: the account's copy in memory; `offline` fails
- * every call. Like Supabase Realtime, a push tells every watcher of that account.
+ * Test double for LibraryBackup, behaving like library_books on Supabase: each
+ * stored version gets the server's next stamp (synced_at), a version not newer
+ * than the stored one is ignored, and a pull since a cursor returns only what
+ * was stored after it. `offline` fails every call; `pulls` records each pull's
+ * cursor. Like Supabase Realtime, a push tells every watcher of that account.
  */
 export class FakeBackup implements LibraryBackup {
-  private readonly versions = new Map<string, BookVersion[]>();
+  private readonly rows = new Map<string, { version: BookVersion; syncedAt: number }[]>();
   private readonly watchers = new Set<{ ownerId: string; onChange: () => void }>();
+  private stamp = 0;
+  readonly pulls: (number | null)[] = [];
   offline = false;
 
   watch(ownerId: string, onChange: () => void): () => void {
@@ -156,17 +163,32 @@ export class FakeBackup implements LibraryBackup {
     return () => this.watchers.delete(watcher);
   }
 
-  async pull(ownerId: string): Promise<BookVersion[]> {
+  async pull(ownerId: string, since: number | null): Promise<BackupChanges> {
     this.reach();
-    return [...(this.versions.get(ownerId) ?? [])];
+    this.pulls.push(since);
+    const fresh = (this.rows.get(ownerId) ?? []).filter((row) => since === null || row.syncedAt > since);
+    const cursor = fresh.reduce<number | null>((newest, row) => Math.max(newest ?? 0, row.syncedAt), since);
+    return { versions: fresh.map((row) => row.version), cursor };
+  }
+
+  /** Every version this account holds. */
+  async stored(ownerId: string): Promise<BookVersion[]> {
+    return (this.rows.get(ownerId) ?? []).map((row) => row.version);
   }
 
   async push(ownerId: string, versions: BookVersion[]): Promise<void> {
     this.reach();
-    const kept = (this.versions.get(ownerId) ?? []).filter(
-      (stored) => !versions.some((version) => version.book.isbn === stored.book.isbn),
-    );
-    this.versions.set(ownerId, [...kept, ...versions]);
+    const rows = this.rows.get(ownerId) ?? [];
+    for (const version of versions) {
+      const index = rows.findIndex((row) => row.version.book.isbn === version.book.isbn);
+      if (index < 0) {
+        rows.push({ version, syncedAt: ++this.stamp });
+      } else if (version.updatedAt > rows[index].version.updatedAt) {
+        rows.splice(index, 1);
+        rows.push({ version, syncedAt: ++this.stamp });
+      }
+    }
+    this.rows.set(ownerId, rows);
     [...this.watchers].filter((watcher) => watcher.ownerId === ownerId).forEach((watcher) => watcher.onChange());
   }
 

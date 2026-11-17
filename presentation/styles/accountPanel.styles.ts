@@ -6,7 +6,17 @@ export const styles = StyleSheet.create({
   panel: { ...panelSurface, padding: space.lg, gap: space.md },
   title: { ...text.title, fontSize: font.title, color: theme.ink },
   body: text.muted,
-  email: { ...text.strong, fontSize: font.body, color: theme.ink },
+  // Details as a two-column list, like a book's facts: label left, value right.
+  detail: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: space.lg,
+    paddingVertical: space.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.outline,
+  },
+  detailLabel: { ...text.ui, color: theme.muted, fontSize: font.small },
+  detailValue: { ...text.strong, color: theme.ink, fontSize: font.small, flexShrink: 1, textAlign: "right" },
   label: { ...text.label, marginBottom: 0 },
   field: { gap: space.xs },
   notice: { ...text.body, fontSize: font.small, lineHeight: 20 },
