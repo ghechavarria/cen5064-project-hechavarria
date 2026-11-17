@@ -172,6 +172,7 @@ function LibraryScreen() {
               mode={state.catalogMode}
               onMode={(mode) => model.setCatalogMode(mode)}
               onOpen={openBook}
+              onRenameGiver={(name) => model.askRenameGiver(name)}
               refreshControl={pullToSync}
             />
           ) : (

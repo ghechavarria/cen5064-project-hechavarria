@@ -5,6 +5,7 @@
  */
 import { ChangeAcquisitionUseCase } from "./changeAcquisition";
 import { ChangeCoverUseCase } from "./changeCover";
+import { RenameGiverUseCase } from "./renameGiver";
 import { DeleteBookUseCase } from "./deleteBook";
 import { FillMissingFactsUseCase } from "./fillMissingFacts";
 import { LoadLibraryUseCase } from "./loadLibrary";
@@ -24,6 +25,7 @@ export class UseCases {
   readonly fillMissing: FillMissingFactsUseCase;
   readonly changeCover: ChangeCoverUseCase;
   readonly changeAcquisition: ChangeAcquisitionUseCase;
+  readonly renameGiver: RenameGiverUseCase;
 
   constructor(repository: BookRepository, isbnLookup: IsbnLookup) {
     this.loadLibrary = new LoadLibraryUseCase(repository);
@@ -35,5 +37,6 @@ export class UseCases {
     this.fillMissing = new FillMissingFactsUseCase(repository, isbnLookup);
     this.changeCover = new ChangeCoverUseCase(repository);
     this.changeAcquisition = new ChangeAcquisitionUseCase(repository);
+    this.renameGiver = new RenameGiverUseCase(repository);
   }
 }

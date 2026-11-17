@@ -7,17 +7,20 @@
  * Pulling the list down (or the empty catalog) runs `refreshControl`, when given.
  * Grouping rules live in CatalogGrouping; rail math lives in AlphabetRail.
  */
+import { Ionicons } from "@expo/vector-icons";
 import { ComponentRef, ReactElement, useRef, useState } from "react";
 import { RefreshControlProps, ScrollView, Text, View } from "react-native";
 import { Book } from "../../domain";
 import { Catalog, CatalogMode, CatalogSection } from "../model/catalog";
 import { styles } from "../styles/ownedCatalog.styles";
+import { icon, theme } from "../styles/theme";
 import { BookCard } from "./BookCard";
 import { Reveal } from "./Reveal";
 import { EmptyShelf } from "./EmptyShelf";
 import { LetterRail } from "./LetterRail";
 import { SegmentedControl } from "./SegmentedControl";
 import { SeriesStack } from "./SeriesStack";
+import { Tappable } from "./Tappable";
 
 const MODE_SEGMENTS = Catalog.groupings.map((grouping) => ({
   key: grouping.mode,
@@ -29,12 +32,14 @@ export function OwnedCatalog({
   mode,
   onMode,
   onOpen,
+  onRenameGiver,
   refreshControl,
 }: {
   books: Book[];
   mode: CatalogMode;
   onMode: (mode: CatalogMode) => void;
   onOpen: (book: Book) => void;
+  onRenameGiver: (name: string) => void;
   refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -96,7 +101,12 @@ export function OwnedCatalog({
                   onOpen={onOpen}
                 />
               ) : (
-                <LetterSection section={section} onOpen={onOpen} />
+                <LetterSection
+                  section={section}
+                  onOpen={onOpen}
+                  // In Gifted, each section is one giver: the pen renames them on all their books.
+                  onEdit={mode === "gifts" ? () => onRenameGiver(section.data[0]?.giftedBy ?? "") : undefined}
+                />
               )}
             </View>
           ))}
@@ -114,17 +124,19 @@ export function OwnedCatalog({
   );
 }
 
-/** A–Z / Author: the section's index heading, then its books. */
+/** A–Z / Author / Gifted: the section's index heading, then its books. */
 function LetterSection({
   section,
   onOpen,
+  onEdit,
 }: {
   section: CatalogSection;
   onOpen: (book: Book) => void;
+  onEdit?: () => void;
 }) {
   return (
     <>
-      <SectionHeading title={section.title} />
+      <SectionHeading title={section.title} onEdit={onEdit} />
       {section.data.map((book, index) => (
         <Reveal key={book.isbn} index={index}>
           <BookCard book={book} meta={book.series.trim() || "Standalone"} onOpen={onOpen} />
@@ -170,10 +182,15 @@ function SeriesSection({
   );
 }
 
-function SectionHeading({ title }: { title: string }) {
+function SectionHeading({ title, onEdit }: { title: string; onEdit?: () => void }) {
   return (
     <View style={styles.sectionHead} accessibilityRole="header">
       <Text style={styles.section}>{title}</Text>
+      {onEdit ? (
+        <Tappable accessibilityRole="button" accessibilityLabel={`Rename: ${title}`} onPress={onEdit} hitSlop={12} style={styles.edit}>
+          <Ionicons name="pencil" size={icon.medium} color={theme.glow} />
+        </Tappable>
+      ) : null}
       <View style={styles.rule} />
     </View>
   );

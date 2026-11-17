@@ -71,11 +71,44 @@ test("'Who gifted it?' suggests names used before: most gifts first, narrowed as
   expect(model.giverSuggestions).toEqual(["Ellie", "Grace"]);
   model.setGiftName("gr");
   expect(model.giverSuggestions).toEqual(["Grace"]);
-  model.setGiftName("grace"); // already one of them: the dropdown closes
-  expect(model.giverSuggestions).toEqual([]);
+  model.setGiftName("grace"); // already one of them (as when editing): offer the others to switch to
+  expect(model.giverSuggestions).toEqual(["Ellie"]);
   model.setGiftName("Zoe");
   expect(model.giverSuggestions).toEqual([]);
   model.dispose();
+});
+
+describe("Renaming a giver (the pen in the Gifted list)", () => {
+  test("renames them on every book they gave, matched without case; a blank name is refused", async () => {
+    const repository = new MemoryBookRepository();
+    const useCases = new UseCases(repository, foxLookup());
+    await repository.save("local", book("1", { acquisition: new Gift("Elie") }));
+    await repository.save("local", book("2", { acquisition: new Gift("elie") }));
+    await repository.save("local", book("3", { acquisition: new Gift("Grace") }));
+
+    expect(await useCases.renameGiver.execute("local", "Elie", "Ellie")).toBe(2);
+    const givers = (await repository.loadLibrary("local")).books.map((saved) => saved.giftedBy).sort();
+    expect(givers).toEqual(["Ellie", "Ellie", "Grace"]);
+    await expect(useCases.renameGiver.execute("local", "Grace", "  ")).rejects.toThrow("needs the name");
+  });
+
+  test("from the Gifted list: the name is filled in, others are offered, and Save renames all their books", async () => {
+    const repository = new MemoryBookRepository();
+    await repository.save("local", book("1", { acquisition: new Gift("Elie") }));
+    await repository.save("local", book("2", { acquisition: new Gift("Elie") }));
+    await repository.save("local", book("3", { acquisition: new Gift("Ellie") }));
+    const model = new LibraryAppModel(async () => controllerFor(repository), new FakeDevices());
+    await model.start();
+
+    model.askRenameGiver("Elie");
+    expect(model.getState()).toMatchObject({ prompt: { kind: "renameGiver", from: "Elie" }, giftName: "Elie" });
+    expect(model.giverSuggestions).toEqual(["Ellie"]); // join them with someone already listed
+    model.setGiftName("Ellie");
+    await model.confirmRenameGiver();
+    expect(model.getState().flash?.text).toBe("2 gifts now from Ellie.");
+    expect(model.getState().view.owned.map((saved) => saved.giftedBy)).toEqual(["Ellie", "Ellie", "Ellie"]);
+    model.dispose();
+  });
 });
 
 describe("Correcting how a book was acquired", () => {

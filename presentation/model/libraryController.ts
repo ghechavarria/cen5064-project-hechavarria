@@ -86,6 +86,10 @@ export class LibraryController {
     return this.useCases.changeAcquisition.execute(this.ownerId, isbn, record);
   }
 
+  renameGiver(from: string, to: string): Promise<number> {
+    return this.useCases.renameGiver.execute(this.ownerId, from, to);
+  }
+
   async move(
     isbn: string,
     target: Shelf,

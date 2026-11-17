@@ -7,6 +7,7 @@ export type { Account } from "./ports";
 export { AccountUseCase, AccountUseCases, SignInUseCase, SignOutUseCase, SignUpUseCase } from "./account";
 export { ChangeAcquisitionUseCase } from "./changeAcquisition";
 export { ChangeCoverUseCase } from "./changeCover";
+export { RenameGiverUseCase } from "./renameGiver";
 export { DeleteBookUseCase } from "./deleteBook";
 export { FillMissingFactsUseCase } from "./fillMissingFacts";
 export { LibraryLookupUseCase } from "./libraryLookupUseCase";

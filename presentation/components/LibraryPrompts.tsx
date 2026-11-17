@@ -126,6 +126,25 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         )}
       />
 
+      {/* Rename a giver on every book they gave (the pen in the Gifted list). */}
+      <PromptModal
+        visible={prompt?.kind === "renameGiver"}
+        title="Rename giver"
+        body={
+          prompt?.kind === "renameGiver"
+            ? `Changes the name on every book from ${prompt.from}. Pick a name below to join them with someone already listed.`
+            : undefined
+        }
+        input={{
+          placeholder: "Name",
+          value: giftName,
+          onChangeText: (text) => model.setGiftName(text),
+          suggestions: model.giverSuggestions,
+        }}
+        onRequestClose={cancel}
+        actions={[{ label: "Save", onPress: () => void model.confirmRenameGiver() }, PromptActions.cancel(cancel)]}
+      />
+
       {/* Delete confirmation */}
       <PromptModal
         visible={prompt?.kind === "delete"}

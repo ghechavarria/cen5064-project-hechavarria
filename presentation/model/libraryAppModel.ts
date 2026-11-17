@@ -40,7 +40,8 @@ type Prompt =
   | AcquisitionPrompt
   | { kind: "giftName"; onChoose: (record: AcquisitionRecord) => void; onCancel: () => void }
   | { kind: "reading"; body: string; onChoose: (status: ReadingStatus) => void; onCancel: () => void }
-  | { kind: "delete"; book: Book };
+  | { kind: "delete"; book: Book }
+  | { kind: "renameGiver"; from: string };
 
 type AcquisitionPrompt = {
   kind: "acquire";
@@ -378,17 +379,36 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /**
-   * Names already used for gifts in this library, for the "Who gifted it?"
-   * dropdown: most gifts first, narrowed to those containing what is typed,
-   * and none once the name typed is already one of them.
+   * Names already used for gifts in this library, for the giver dropdowns:
+   * most gifts first, narrowed to those containing what is typed. When the
+   * name typed is already one of them (as when editing a gift), the others
+   * are offered instead, to switch to.
    */
   get giverSuggestions(): string[] {
     const typed = this.getState().giftName.trim().toLowerCase();
     const givers = LibraryInsights.givers(this.getState().view);
-    if (givers.some((name) => name.toLowerCase() === typed)) {
-      return [];
+    const exact = givers.some((name) => name.toLowerCase() === typed);
+    return givers
+      .filter((name) => (exact ? name.toLowerCase() !== typed : name.toLowerCase().includes(typed)))
+      .slice(0, MAX_GIVER_SUGGESTIONS);
+  }
+
+  /** The pen beside a giver in the Gifted list: rename them on every book they gave. */
+  askRenameGiver(from: string): void {
+    this.setState({ prompt: { kind: "renameGiver", from }, giftName: from });
+  }
+
+  confirmRenameGiver(): Promise<void> {
+    const { prompt, giftName } = this.getState();
+    const to = giftName.trim();
+    if (prompt?.kind !== "renameGiver" || to === "") {
+      return Promise.resolve(); // no name yet: the popup stays open
     }
-    return givers.filter((name) => name.toLowerCase().includes(typed)).slice(0, MAX_GIVER_SUGGESTIONS);
+    return this.run(async (library) => {
+      const count = await library.renameGiver(prompt.from, to);
+      this.flash(`${Labels.count(count, "gift")} now from ${to}.`);
+      this.setState({ giftName: "" });
+    });
   }
 
   setGiftName(giftName: string): void {
