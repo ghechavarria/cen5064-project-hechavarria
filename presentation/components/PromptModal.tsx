@@ -1,14 +1,13 @@
 /**
  * Component: PromptModal — the generic popup (title, body, optional extra
- * content, optional text input with a dropdown of suggestions, and a column of buttons).
+ * content, optional text input with a row of name chips under it, an optional
+ * note, and a column of buttons).
  * Every popup in the app is one of these.
  */
 import { ReactNode } from "react";
-import { Ionicons } from "@expo/vector-icons";
-import { Modal, Text, View } from "react-native";
+import { Modal, ScrollView, Text, View } from "react-native";
 import { PromptAction } from "../model/promptActions";
 import { styles } from "../styles/promptModal.styles";
-import { icon, theme } from "../styles/theme";
 import { Button } from "./Button";
 import { Tappable } from "./Tappable";
 import { TextField } from "./TextField";
@@ -18,6 +17,7 @@ export function PromptModal({
   title,
   body,
   input,
+  note,
   actions,
   onRequestClose,
   children,
@@ -25,8 +25,17 @@ export function PromptModal({
   visible: boolean;
   title: string;
   body?: string;
-  // `suggestions` list under the field like a dropdown; tapping one fills it in.
-  input?: { placeholder: string; value: string; onChangeText: (text: string) => void; suggestions?: string[] };
+  // `choices`: names shown as one fixed row of chips under the field (the same
+  // names in the same order while typing); tapping one fills it in, and the one
+  // matching the field is lit.
+  input?: {
+    placeholder: string;
+    value: string;
+    onChangeText: (text: string) => void;
+    choices?: { label: string; names: string[]; selected: string | null };
+  };
+  // A line under the field that explains what the main button will do.
+  note?: string;
   actions: PromptAction[];
   onRequestClose: () => void;
   children?: ReactNode;
@@ -47,21 +56,32 @@ export function PromptModal({
               autoFocus
             />
           ) : null}
-          {input?.suggestions?.length ? (
-            <View style={styles.dropdown} accessibilityLabel="Names used before">
-              {input.suggestions.map((name) => (
-                <Tappable
-                  key={name}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use ${name}`}
-                  onPress={() => input.onChangeText(name)}
-                  style={styles.option}
-                >
-                  <Ionicons name="person-outline" size={icon.small} color={theme.glow} />
-                  <Text style={styles.optionText}>{name}</Text>
-                </Tappable>
-              ))}
+          {input?.choices && input.choices.names.length > 0 ? (
+            <View style={styles.choices}>
+              <Text style={styles.choicesLabel}>{input.choices.label}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {input.choices.names.map((name) => {
+                  const on = name === input.choices?.selected;
+                  return (
+                    <Tappable
+                      key={name}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Use ${name}`}
+                      onPress={() => input.onChangeText(name)}
+                      style={[styles.chip, on && styles.chipOn]}
+                    >
+                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{name}</Text>
+                    </Tappable>
+                  );
+                })}
+              </ScrollView>
             </View>
+          ) : null}
+          {note !== undefined ? (
+            <Text style={styles.note} accessibilityLiveRegion="polite">
+              {note}
+            </Text>
           ) : null}
           {actions.map((action) => (
             <Button key={action.label} compact {...action} />

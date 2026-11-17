@@ -26,26 +26,24 @@ export const styles = StyleSheet.create({
   title: { ...text.title, fontSize: font.heading, color: theme.ink, textAlign: "center" },
   body: { ...text.muted, marginBottom: space.xs, textAlign: "center" },
   input: { marginVertical: space.sm },
-  // Names used before, listed under the field like a dropdown.
-  dropdown: {
-    marginTop: -space.xs,
-    marginBottom: space.sm,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+  // Names used before: one row of chips that scrolls sideways, so its height never changes.
+  choices: { gap: space.xs, marginTop: -space.xs, marginBottom: space.sm },
+  choicesLabel: { ...text.ui, fontSize: font.caption, color: theme.muted },
+  chipRow: { gap: space.sm },
+  chip: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.surface,
-    overflow: "hidden",
   },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.sm,
-    minHeight: 44,
-    paddingHorizontal: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.outline,
-  },
-  optionText: { ...text.ui, fontSize: font.body, color: theme.ink },
+  chipOn: { backgroundColor: theme.selected, borderColor: theme.glow },
+  chipText: { ...text.ui, fontSize: font.small, color: theme.ink },
+  chipTextOn: { color: theme.glow },
+  // Room for two lines, kept even when empty, so the buttons below don't jump.
+  note: { ...text.muted, fontSize: font.small, textAlign: "center", minHeight: 40, marginBottom: space.xs },
 });
 
 // The sheet's inner padding, so a child can bleed edge to edge across it.

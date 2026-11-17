@@ -11,6 +11,7 @@ import { PromptModal } from "./PromptModal";
 
 export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state: AppState }) {
   const { prompt, giftName } = state;
+  const renamePlan = model.renamePlan;
   const draft = prompt?.kind === "scanConfirm" ? prompt.draft : null;
   // Every choice popup can be backed out of (phones have no Escape key or back gesture for modals).
   // During a scan that means "Nothing added"; during a move, nothing changes.
@@ -103,11 +104,11 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
           placeholder: "Name",
           value: giftName,
           onChangeText: (text) => model.setGiftName(text),
-          suggestions: model.giverSuggestions,
+          choices: { label: "Gifted before", ...model.giverChoices },
         }}
         onRequestClose={cancel}
         actions={[
-          { label: "Continue", onPress: () => model.continueGift() },
+          { label: "Continue", onPress: () => model.continueGift(), disabled: giftName.trim() === "" },
           PromptActions.cancel(cancel),
         ]}
       />
@@ -126,23 +127,27 @@ export function LibraryPrompts({ model, state }: { model: LibraryAppModel; state
         )}
       />
 
-      {/* Rename a giver on every book they gave (the pen in the Gifted list). */}
+      {/* Rename a giver on every book they gave (the pen in the Gifted list). The
+          button says what will happen: Rename, or Combine with someone already listed. */}
       <PromptModal
-        visible={prompt?.kind === "renameGiver"}
-        title="Rename giver"
-        body={
-          prompt?.kind === "renameGiver"
-            ? `Changes the name on every book from ${prompt.from}. Pick a name below to join them with someone already listed.`
-            : undefined
-        }
+        visible={renamePlan !== null}
+        title={renamePlan?.title ?? "Rename"}
+        body={renamePlan?.body}
         input={{
           placeholder: "Name",
           value: giftName,
           onChangeText: (text) => model.setGiftName(text),
-          suggestions: model.giverSuggestions,
         }}
+        note={renamePlan?.note ?? ""}
         onRequestClose={cancel}
-        actions={[{ label: "Save", onPress: () => void model.confirmRenameGiver() }, PromptActions.cancel(cancel)]}
+        actions={[
+          {
+            label: renamePlan?.action ?? "Rename",
+            onPress: () => void model.confirmRenameGiver(),
+            disabled: !renamePlan?.canSave,
+          },
+          PromptActions.cancel(cancel),
+        ]}
       />
 
       {/* Delete confirmation */}

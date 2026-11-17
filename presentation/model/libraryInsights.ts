@@ -72,9 +72,9 @@ export class LibraryInsights {
       .map((name) => name.charAt(0).toUpperCase() + name.slice(1));
   }
 
-  /** Everyone who has given a book in this library, most gifts first (names matched without case). */
-  static givers(view: LibraryView): string[] {
-    return LibraryInsights.giverCounts(view.owned).map((entry) => entry.name);
+  /** Everyone who has given a book in this library and how many, most gifts first (names matched without case). */
+  static givers(view: LibraryView): { name: string; gifts: number }[] {
+    return LibraryInsights.giverCounts(view.owned);
   }
 
   // Owned books that were gifts, and the giver of the most of them.

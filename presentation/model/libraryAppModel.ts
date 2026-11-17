@@ -83,8 +83,11 @@ export type AppState = {
   prompt: Prompt | null;
 };
 
-// How many names the "Who gifted it?" dropdown lists at most.
-const MAX_GIVER_SUGGESTIONS = 4;
+// How many past givers the "Who gifted it?" chips offer at most.
+const MAX_GIVER_CHOICES = 8;
+
+/** What the Rename popup would do, worded for it; `to` is the name the books will carry. */
+type RenamePlan = { title: string; body: string; note: string; action: string; canSave: boolean; to: string };
 
 const TAB_HEADINGS: Record<MenuTab, string> = {
   tbr: "To be read",
@@ -379,18 +382,46 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /**
-   * Names already used for gifts in this library, for the giver dropdowns:
-   * most gifts first, narrowed to those containing what is typed. When the
-   * name typed is already one of them (as when editing a gift), the others
-   * are offered instead, to switch to.
+   * Past givers for the chips under "Who gifted it?": always the same names in
+   * the same order (most gifts first), so nothing moves while typing. `selected`
+   * is the one the name typed matches, shown lit.
    */
-  get giverSuggestions(): string[] {
+  get giverChoices(): { names: string[]; selected: string | null } {
     const typed = this.getState().giftName.trim().toLowerCase();
+    const names = LibraryInsights.givers(this.getState().view)
+      .slice(0, MAX_GIVER_CHOICES)
+      .map((giver) => giver.name);
+    return { names, selected: names.find((name) => name.toLowerCase() === typed) ?? null };
+  }
+
+  /**
+   * The Rename popup, worded from what Save would do: rename the giver on their
+   * books, or, when the name typed is someone already listed, combine the two.
+   * Save stays off until the name actually changes.
+   */
+  get renamePlan(): RenamePlan | null {
+    const { prompt, giftName } = this.getState();
+    if (prompt?.kind !== "renameGiver") {
+      return null;
+    }
+    const { from } = prompt;
+    const to = giftName.trim();
     const givers = LibraryInsights.givers(this.getState().view);
-    const exact = givers.some((name) => name.toLowerCase() === typed);
-    return givers
-      .filter((name) => (exact ? name.toLowerCase() !== typed : name.toLowerCase().includes(typed)))
-      .slice(0, MAX_GIVER_SUGGESTIONS);
+    const own = givers.find((giver) => giver.name.toLowerCase() === from.toLowerCase());
+    const other = givers.find(
+      (giver) => giver.name.toLowerCase() === to.toLowerCase() && giver.name.toLowerCase() !== from.toLowerCase(),
+    );
+    return {
+      title: `Rename ${from}`,
+      body: `${from} gave you ${Labels.count(own?.gifts ?? 0, "book")}. Type the name as it should read on ${own?.gifts === 1 ? "it" : "all of them"}.`,
+      note: other
+        ? `${other.name} is already listed with ${Labels.count(other.gifts, "book")}. All of them will be listed under ${other.name}.`
+        : "",
+      action: other ? `Combine with ${other.name}` : "Rename",
+      canSave: to !== "" && to !== from,
+      // Combining keeps the spelling already listed, whatever capitals were typed.
+      to: other?.name ?? to,
+    };
   }
 
   /** The pen beside a giver in the Gifted list: rename them on every book they gave. */
@@ -399,14 +430,18 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   confirmRenameGiver(): Promise<void> {
-    const { prompt, giftName } = this.getState();
-    const to = giftName.trim();
-    if (prompt?.kind !== "renameGiver" || to === "") {
-      return Promise.resolve(); // no name yet: the popup stays open
+    const { prompt } = this.getState();
+    const plan = this.renamePlan;
+    if (prompt?.kind !== "renameGiver" || !plan?.canSave) {
+      return Promise.resolve(); // nothing to change yet: the popup stays open
     }
+    const combined = plan.note !== "";
+    const to = plan.to;
     return this.run(async (library) => {
       const count = await library.renameGiver(prompt.from, to);
-      this.flash(`${Labels.count(count, "gift")} now from ${to}.`);
+      this.flash(
+        combined ? `Combined: ${prompt.from}'s ${Labels.count(count, "book")} now listed under ${to}.` : `Renamed ${prompt.from} to ${to}.`,
+      );
       this.setState({ giftName: "" });
     });
   }
