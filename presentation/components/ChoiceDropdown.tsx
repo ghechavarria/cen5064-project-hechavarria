@@ -15,7 +15,11 @@ import {
   View,
 } from "react-native";
 import { useReducedMotion } from "../model/useReducedMotion";
-import { listEntrance, listEntranceStyle } from "../styles/feedback.styles";
+import {
+  chevronTurnStyle,
+  listEntrance,
+  listEntranceStyle,
+} from "../styles/feedback.styles";
 import { styles } from "../styles/choiceDropdown.styles";
 import { icon, theme } from "../styles/theme";
 import { Tappable } from "./Tappable";
@@ -33,6 +37,7 @@ export function ChoiceDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion();
+  const turn = useRef(new Animated.Value(0)).current;
   // What sits below (the note and the buttons) eases to its new place instead of jumping.
   const toggle = (next: boolean) => {
     if (!reduced) {
@@ -45,6 +50,11 @@ export function ChoiceDropdown({
       );
     }
     setOpen(next);
+    if (reduced) {
+      turn.setValue(next ? 1 : 0);
+    } else {
+      Animated.timing(turn, { toValue: next ? 1 : 0, ...listEntrance }).start();
+    }
   };
   return (
     <View style={styles.wrap}>
@@ -58,11 +68,9 @@ export function ChoiceDropdown({
         <Ionicons name="people-outline" size={icon.small} color={theme.glow} />
         <Text style={styles.toggleText}>{label}</Text>
         <Text style={styles.count}>{names.length}</Text>
-        <Ionicons
-          name={open ? "chevron-up" : "chevron-down"}
-          size={icon.small}
-          color={theme.muted}
-        />
+        <Animated.View style={chevronTurnStyle(turn)}>
+          <Ionicons name="chevron-down" size={icon.small} color={theme.muted} />
+        </Animated.View>
       </Tappable>
       {open ? (
         <SlideIn reduced={reduced}>
