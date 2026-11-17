@@ -75,6 +75,7 @@ export type AppState = {
   reading: ReadingStatus;
   catalogMode: CatalogMode; // the Owned tab's grouping
   wantedMode: CatalogMode; // the Wanted tab's grouping (A–Z, Author or Series)
+  tbrMode: CatalogMode; // To be read's grouping (A–Z, Author or Series)
   selectedIsbn: string | null;
   isbnDraft: string;
   giftName: string;
@@ -89,7 +90,7 @@ type RenamePlan = { title: string; body: string; note: string; action: string; c
 
 /** The groupings each catalog tab offers. */
 export const OWNED_MODES: CatalogMode[] = ["az", "author", "series", "gifts"];
-export const WANTED_MODES: CatalogMode[] = ["az", "author", "series"];
+export const SHELF_MODES: CatalogMode[] = ["az", "author", "series"]; // To be read and Wanted
 
 const TAB_HEADINGS: Record<MenuTab, string> = {
   tbr: "To be read",
@@ -125,6 +126,7 @@ export class LibraryAppModel extends Observable<AppState> {
       reading: ReadingStatus.UNREAD,
       catalogMode: "az",
       wantedMode: "az",
+      tbrMode: "az",
       selectedIsbn: null,
       isbnDraft: "",
       giftName: "",
@@ -273,7 +275,7 @@ export class LibraryAppModel extends Observable<AppState> {
     return screen === "detail" ? "detail" : tab;
   }
 
-  /** TBR is a plain A–Z list of the owned books for the reading switch; null on other pages. */
+  /** To be read: the owned books for the reading switch, and what to say when there are none; null on other pages. */
   get bookList(): { books: Book[]; empty: string } | null {
     const { view, reading } = this.getState();
     return this.page === "tbr" ? { books: view.toBeRead(reading), empty: "Scan an ISBN onto Owned." } : null;
@@ -390,11 +392,18 @@ export class LibraryAppModel extends Observable<AppState> {
 
   /** Wanted's grouping switch; it has no Gifted (a wanted book isn't yours yet). */
   setWantedMode(wantedMode: CatalogMode): void {
-    if (!WANTED_MODES.includes(wantedMode)) {
-      return;
+    if (SHELF_MODES.includes(wantedMode)) {
+      this.tickIfChanged(wantedMode, this.getState().wantedMode);
+      this.setState({ wantedMode });
     }
-    this.tickIfChanged(wantedMode, this.getState().wantedMode);
-    this.setState({ wantedMode });
+  }
+
+  /** To be read's small grouping switch, above Unread / Read. */
+  setTbrMode(tbrMode: CatalogMode): void {
+    if (SHELF_MODES.includes(tbrMode)) {
+      this.tickIfChanged(tbrMode, this.getState().tbrMode);
+      this.setState({ tbrMode });
+    }
   }
 
   setCatalogMode(catalogMode: CatalogMode): void {

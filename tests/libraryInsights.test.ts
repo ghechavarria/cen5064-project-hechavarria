@@ -91,7 +91,7 @@ test("each Account tile opens the list it counts", async () => {
   model.dispose();
 });
 
-test("Wanted has its own grouping switch (A–Z, Author, Series), separate from Owned's", async () => {
+test("Wanted and To be read have their own grouping switches (A–Z, Author, Series), separate from Owned's", async () => {
   const model = new LibraryAppModel(async () => controllerFor(), new FakeDevices());
   await model.start();
   model.setWantedMode("author");
@@ -99,6 +99,9 @@ test("Wanted has its own grouping switch (A–Z, Author, Series), separate from 
   expect(model.getState()).toMatchObject({ wantedMode: "author", catalogMode: "series" });
   model.setWantedMode("gifts"); // a wanted book isn't yours yet: no Gifted grouping
   expect(model.getState().wantedMode).toBe("author");
+  model.setTbrMode("series"); // To be read's small switch, its own choice too
+  model.setTbrMode("gifts");
+  expect(model.getState()).toMatchObject({ tbrMode: "series", wantedMode: "author", catalogMode: "series" });
   model.dispose();
 });
 

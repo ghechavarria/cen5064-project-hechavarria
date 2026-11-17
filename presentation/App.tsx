@@ -18,7 +18,6 @@ import { AccountPanel } from "./components/AccountPanel";
 import { Book, Shelf } from "../domain";
 import { ArtFill } from "./components/Art";
 import { BookDetail } from "./components/BookDetail";
-import { BookList } from "./components/BookList";
 import { EmptyShelf } from "./components/EmptyShelf";
 import { FlashBanner } from "./components/FlashBanner";
 import { IsbnCamera } from "./components/IsbnCamera";
@@ -33,13 +32,18 @@ import { SegmentedControl } from "./components/SegmentedControl";
 import { BrowserDevices } from "./device/browserDevices";
 import { PhoneDevices } from "./device/phoneDevices";
 import { AccountModel } from "./model/accountModel";
-import { LibraryAppModel, OWNED_MODES, WANTED_MODES } from "./model/libraryAppModel";
+import { Catalog } from "./model/catalog";
+import { LibraryAppModel, OWNED_MODES, SHELF_MODES } from "./model/libraryAppModel";
 import { LibraryController } from "./model/libraryController";
 import { useObservable } from "./model/useObservable";
 import { belowStatusBar, styles } from "./styles/app.styles";
 import { fontAssets } from "./styles/fonts";
 
 const OWNER_ID = "local";
+// To be read's small grouping switch: A–Z, Author, Series.
+const SHELF_SEGMENTS = Catalog.groupings
+  .filter((grouping) => SHELF_MODES.includes(grouping.mode))
+  .map((grouping) => ({ key: grouping.mode, label: grouping.label }));
 const SAFETY_SYNC_MS = 30_000;
 const FOREST = require("../assets/forest-bg.png");
 
@@ -134,15 +138,24 @@ function LibraryScreen() {
         />
 
         {page === "tbr" && !model.locked ? (
-          <SegmentedControl
-            segments={model.readingSegments.map(({ key, label, read }) => ({
-              key,
-              label,
-              icon: read ? "leaf-outline" : undefined,
-            }))}
-            selected={state.reading}
-            onSelect={(status) => model.showReading(status)}
-          />
+          <>
+            {/* Small and thin: how the list below is grouped. */}
+            <SegmentedControl
+              size="small"
+              segments={SHELF_SEGMENTS}
+              selected={state.tbrMode}
+              onSelect={(mode) => model.setTbrMode(mode)}
+            />
+            <SegmentedControl
+              segments={model.readingSegments.map(({ key, label, read }) => ({
+                key,
+                label,
+                icon: read ? "leaf-outline" : undefined,
+              }))}
+              selected={state.reading}
+              onSelect={(status) => model.showReading(status)}
+            />
+          </>
         ) : null}
 
         <FlashBanner flash={state.flash} onDismiss={() => model.dismissFlash()} />
@@ -184,7 +197,7 @@ function LibraryScreen() {
           ) : page === "wanted" ? (
             <GroupedCatalog
               books={state.view.wanted}
-              modes={WANTED_MODES}
+              modes={SHELF_MODES}
               mode={state.wantedMode}
               empty={{
                 iconName: "leaf-outline",
@@ -197,13 +210,21 @@ function LibraryScreen() {
               refreshControl={pullToSync}
             />
           ) : bookList ? (
-            // To be read: A–Z with the rail, like Owned and Wanted.
-            <BookList
+            // To be read: grouped by the small switch above, with the rail, like Owned and Wanted.
+            <GroupedCatalog
               books={bookList.books}
-              empty={bookList.empty}
-              resetKey={`${page}:${state.reading}`}
+              modes={SHELF_MODES}
+              mode={state.tbrMode}
+              showSwitch={false}
+              listKey={state.reading}
+              empty={{
+                iconName: "leaf-outline",
+                title: "The shelf is quiet",
+                message: bookList.empty,
+                action: { label: "Scan a book", onPress: () => model.selectTab("scan") },
+              }}
+              onMode={(mode) => model.setTbrMode(mode)}
               onOpen={openBook}
-              onScan={() => model.selectTab("scan")}
               refreshControl={pullToSync}
             />
           ) : (

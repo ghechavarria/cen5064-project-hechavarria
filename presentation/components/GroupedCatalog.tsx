@@ -1,8 +1,9 @@
 /**
- * Component: GroupedCatalog — Owned and Wanted. A segmented switch picks the
- * grouping strategy (Owned: A–Z / Author / Series / Gifted; Wanted: A–Z /
- * Author / Series); every mode shows its sections in one CatalogList with the
- * A–Z rail beside it:
+ * Component: GroupedCatalog — To be read, Owned and Wanted. A segmented switch
+ * picks the grouping strategy (Owned: A–Z / Author / Series / Gifted; To be read
+ * and Wanted: A–Z / Author / Series; To be read draws its own small switch, so
+ * it passes showSwitch={false}); every mode shows its sections in one
+ * CatalogList with the A–Z rail beside it:
  *   - A–Z and Author: an index heading per section, then its books
  *   - Series: a fanned SeriesStack per series (tap to expand); standalone books listed plainly
  *   - Gifted: a heading per giver, with a pen to rename them on all their books
@@ -42,10 +43,15 @@ export function GroupedCatalog({
   onOpen,
   onRenameGiver,
   refreshControl,
+  showSwitch = true,
+  listKey = "",
 }: {
   books: Book[];
   modes: CatalogMode[];
   mode: CatalogMode;
+  showSwitch?: boolean;
+  // Another reason to return to the top of the list (To be read's Unread / Read).
+  listKey?: string;
   empty: EmptyCard;
   onMode: (mode: CatalogMode) => void;
   onOpen: (book: Book) => void;
@@ -64,7 +70,7 @@ export function GroupedCatalog({
       books.length === 0 ? empty : { iconName: "gift-outline", ...Catalog.grouping(mode).empty };
     return (
       <View style={styles.wrap}>
-        <SegmentedControl segments={segments} selected={mode} onSelect={onMode} />
+        {showSwitch ? <SegmentedControl segments={segments} selected={mode} onSelect={onMode} /> : null}
         {/* Scrollable even when empty, so it can be pulled down to sync. */}
         <ScrollView refreshControl={refreshControl} showsVerticalScrollIndicator={false}>
           <EmptyShelf {...card} style={styles.empty} />
@@ -75,10 +81,10 @@ export function GroupedCatalog({
 
   return (
     <View style={styles.wrap}>
-      <SegmentedControl segments={segments} selected={mode} onSelect={onMode} />
+      {showSwitch ? <SegmentedControl segments={segments} selected={mode} onSelect={onMode} /> : null}
       <CatalogList
         sections={sections}
-        resetKey={mode}
+        resetKey={`${listKey}:${mode}`}
         refreshControl={refreshControl}
         renderSection={(section) =>
           mode === "series" ? (
