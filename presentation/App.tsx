@@ -139,7 +139,7 @@ function LibraryScreen() {
 
         {page === "tbr" && !model.locked ? (
           <>
-            {/* Small and thin: how the list below is grouped. */}
+            {/* Both small and thin: how the list below is grouped, then Unread / Read. */}
             <SegmentedControl
               size="small"
               segments={SHELF_SEGMENTS}
@@ -147,6 +147,7 @@ function LibraryScreen() {
               onSelect={(mode) => model.setTbrMode(mode)}
             />
             <SegmentedControl
+              size="small"
               segments={model.readingSegments.map(({ key, label, read }) => ({
                 key,
                 label,
