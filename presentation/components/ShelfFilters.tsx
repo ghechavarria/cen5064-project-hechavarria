@@ -1,8 +1,8 @@
 /**
- * Component: ShelfFilters — To be read's filters, as one quiet panel: how the
- * list is grouped (A–Z / Author / Series, small text options with the chosen
- * one on a soft pill), then a hairline, then Unread / Read with a count badge
- * each (Read with its leaf). Every option keeps a 44-point tap target.
+ * Component: ShelfFilters — To be read's filters in one slim row: Unread / Read
+ * as a switch (a count badge each, the leaf by Read), and beside it a small
+ * button showing how the list is grouped; tapping it moves to the next grouping
+ * (A–Z → Author → Series → A–Z). Every option keeps a 44-point tap target.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
@@ -30,29 +30,12 @@ export function ShelfFilters({
   reading: ReadingStatus;
   onReading: (status: ReadingStatus) => void;
 }) {
+  const at = Math.max(0, groupings.findIndex((option) => option.key === grouping));
+  const current = groupings[at];
+  const next = groupings[(at + 1) % groupings.length];
   return (
-    <View style={styles.panel}>
-      <View style={styles.groupRow} accessibilityRole="tablist">
-        <Text style={styles.groupLabel}>Group</Text>
-        {groupings.map((option) => {
-          const on = option.key === grouping;
-          return (
-            <Tappable
-              key={option.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`Group by ${option.label}`}
-              hitSlop={{ top: 8, bottom: 8 }}
-              onPress={() => !on && onGrouping(option.key)}
-              style={[styles.groupOption, on && styles.groupOptionOn]}
-            >
-              <Text style={[styles.groupText, on && styles.groupTextOn]}>{option.label}</Text>
-            </Tappable>
-          );
-        })}
-      </View>
-      <View style={styles.rule} />
-      <View style={styles.readingRow} accessibilityRole="tablist">
+    <View style={styles.row}>
+      <View style={styles.switch} accessibilityRole="tablist">
         {readings.map((option) => {
           const on = option.key === reading;
           return (
@@ -61,11 +44,12 @@ export function ShelfFilters({
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
               accessibilityLabel={`${option.label}, ${option.count}`}
+              hitSlop={{ top: 4, bottom: 4 }}
               onPress={() => !on && onReading(option.key)}
-              style={[styles.readingOption, on && styles.readingOptionOn]}
+              style={[styles.half, on && styles.halfOn]}
             >
               {option.read ? <Ionicons name="leaf-outline" size={icon.small} color={on ? theme.glow : theme.muted} /> : null}
-              <Text style={[styles.readingText, on && styles.readingTextOn]}>{option.label}</Text>
+              <Text style={[styles.label, on && styles.labelOn]}>{option.label}</Text>
               <View style={[styles.badge, on && styles.badgeOn]}>
                 <Text style={[styles.badgeText, on && styles.badgeTextOn]}>{option.count}</Text>
               </View>
@@ -73,6 +57,16 @@ export function ShelfFilters({
           );
         })}
       </View>
+      <Tappable
+        accessibilityRole="button"
+        accessibilityLabel={`Grouped by ${current.label}. Tap for ${next.label}`}
+        hitSlop={{ top: 4, bottom: 4 }}
+        onPress={() => onGrouping(next.key)}
+        style={styles.grouping}
+      >
+        <Ionicons name="swap-vertical" size={icon.small} color={theme.glow} />
+        <Text style={styles.groupingText}>{current.label}</Text>
+      </Tappable>
     </View>
   );
 }
