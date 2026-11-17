@@ -282,11 +282,12 @@ export class LibraryAppModel extends Observable<AppState> {
   }
 
   /** TBR's Unread / Read switch, with a count on each side. */
-  get readingSegments(): { key: ReadingStatus; label: string; read: boolean }[] {
+  get readingSegments(): { key: ReadingStatus; label: string; count: number; read: boolean }[] {
     const { view } = this.getState();
     return Object.values(ReadingStatus).map((status) => ({
       key: status,
-      label: `${Labels.readingTitle(status)} ${view.toBeRead(status).length}`,
+      label: Labels.readingTitle(status),
+      count: view.toBeRead(status).length,
       read: status === ReadingStatus.READ,
     }));
   }

@@ -28,7 +28,7 @@ import { GroupedCatalog } from "./components/GroupedCatalog";
 import { PullToSync } from "./components/PullToSync";
 import { ScanForm } from "./components/ScanForm";
 import { ScreenHeader } from "./components/ScreenHeader";
-import { SegmentedControl } from "./components/SegmentedControl";
+import { ShelfFilters } from "./components/ShelfFilters";
 import { BrowserDevices } from "./device/browserDevices";
 import { PhoneDevices } from "./device/phoneDevices";
 import { AccountModel } from "./model/accountModel";
@@ -138,25 +138,15 @@ function LibraryScreen() {
         />
 
         {page === "tbr" && !model.locked ? (
-          <>
-            {/* Both small and thin: how the list below is grouped, then Unread / Read. */}
-            <SegmentedControl
-              size="small"
-              segments={SHELF_SEGMENTS}
-              selected={state.tbrMode}
-              onSelect={(mode) => model.setTbrMode(mode)}
-            />
-            <SegmentedControl
-              size="small"
-              segments={model.readingSegments.map(({ key, label, read }) => ({
-                key,
-                label,
-                icon: read ? "leaf-outline" : undefined,
-              }))}
-              selected={state.reading}
-              onSelect={(status) => model.showReading(status)}
-            />
-          </>
+          // One panel: how the list is grouped, then Unread / Read.
+          <ShelfFilters
+            groupings={SHELF_SEGMENTS}
+            grouping={state.tbrMode}
+            onGrouping={(mode) => model.setTbrMode(mode)}
+            readings={model.readingSegments}
+            reading={state.reading}
+            onReading={(status) => model.showReading(status)}
+          />
         ) : null}
 
         <FlashBanner flash={state.flash} onDismiss={() => model.dismissFlash()} />
