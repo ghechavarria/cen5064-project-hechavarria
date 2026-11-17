@@ -1,8 +1,8 @@
 /**
- * Component: ShelfFilters — To be read's filters in one slim row: Unread / Read
+ * Component: ShelfFilters — To be read's filters in one row: Unread / Read
  * as a switch (a count badge each, the leaf by Read), and beside it a small
  * button showing how the list is grouped; tapping it moves to the next grouping
- * (A–Z → Author → Series → A–Z). Every option keeps a 44-point tap target.
+ * (A–Z → Author → Series → A–Z). As thick as the other switches; 44-point targets.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
@@ -44,7 +44,6 @@ export function ShelfFilters({
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
               accessibilityLabel={`${option.label}, ${option.count}`}
-              hitSlop={{ top: 4, bottom: 4 }}
               onPress={() => !on && onReading(option.key)}
               style={[styles.half, on && styles.halfOn]}
             >
@@ -60,7 +59,6 @@ export function ShelfFilters({
       <Tappable
         accessibilityRole="button"
         accessibilityLabel={`Grouped by ${current.label}. Tap for ${next.label}`}
-        hitSlop={{ top: 4, bottom: 4 }}
         onPress={() => onGrouping(next.key)}
         style={styles.grouping}
       >
