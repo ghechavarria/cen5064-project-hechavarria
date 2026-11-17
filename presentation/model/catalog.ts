@@ -7,7 +7,8 @@ import { Acquisition, Book } from "../../domain";
 
 export type CatalogMode = "az" | "author" | "series" | "gifts";
 
-export type CatalogSection = { title: string; data: Book[] };
+/** A section of the list: its heading, its books, and the A–Z rail letter it is filed under. */
+export type CatalogSection = { title: string; data: Book[]; letter: string };
 
 /** Abstract strategy: each subclass says which section a book belongs to. */
 export abstract class CatalogGrouping {
@@ -15,10 +16,14 @@ export abstract class CatalogGrouping {
   abstract readonly label: string;
   // Shown when no book belongs in this grouping.
   readonly empty = { title: "No owned books yet", message: "Scan an ISBN onto Owned to fill this catalog." };
-  // Whether the A–Z rail helps: not when every section starts the same way ("From …").
-  readonly hasRail: boolean = true;
 
   protected abstract sectionOf(book: Book): string;
+
+  // The rail letter a section is filed under: the first letter of its heading,
+  // unless a subclass knows better.
+  protected letterFor(title: string, _first: Book): string {
+    return Catalog.letterOf(title);
+  }
 
   // Which books this grouping lists; every one, unless a subclass narrows it.
   protected includes(_book: Book): boolean {
@@ -35,7 +40,10 @@ export abstract class CatalogGrouping {
         const key = this.sectionOf(book);
         groups.set(key, [...(groups.get(key) ?? []), book]);
       });
-    return this.order([...groups.keys()]).map((title) => ({ title, data: groups.get(title) ?? [] }));
+    return this.order([...groups.keys()]).map((title) => {
+      const data = groups.get(title) ?? [];
+      return { title, data, letter: this.letterFor(title, data[0]) };
+    });
   }
 
   // Default order is alphabetical; subclasses may override.
@@ -81,7 +89,6 @@ class GiftGrouping extends CatalogGrouping {
   readonly mode = "gifts";
   readonly label = "Gifted";
   override readonly empty = { title: "No gifts yet", message: "Books marked as gifts show here, under who gave them." };
-  override readonly hasRail = false;
 
   protected override includes(book: Book): boolean {
     return book.acquiredAs === Acquisition.GIFTED;
@@ -89,6 +96,11 @@ class GiftGrouping extends CatalogGrouping {
 
   protected sectionOf(book: Book): string {
     return `From ${book.giftedBy?.trim() || "someone"}`;
+  }
+
+  // Every heading starts "From …": the rail files each giver under their own name.
+  protected override letterFor(_title: string, first: Book): string {
+    return Catalog.letterOf(first.giftedBy ?? "");
   }
 }
 

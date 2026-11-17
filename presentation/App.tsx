@@ -175,13 +175,22 @@ function LibraryScreen() {
               onRenameGiver={(name) => model.askRenameGiver(name)}
               refreshControl={pullToSync}
             />
+          ) : bookList ? (
+            // To be read and Wanted: A–Z with the rail, like Owned.
+            <BookList
+              books={bookList.books}
+              empty={bookList.empty}
+              resetKey={`${page}:${state.reading}`}
+              onOpen={openBook}
+              onScan={() => model.selectTab("scan")}
+              refreshControl={pullToSync}
+            />
           ) : (
             <ScrollView
               style={styles.scroll}
               contentContainerStyle={styles.main}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              refreshControl={bookList ? pullToSync : undefined}
             >
               {page === "scan" ? (
                 <ScanForm
@@ -189,14 +198,6 @@ function LibraryScreen() {
                   busy={state.busy}
                   onChange={(text) => model.setIsbnDraft(text)}
                   onSubmit={() => void model.scan()}
-                />
-              ) : null}
-              {bookList ? (
-                <BookList
-                  books={bookList.books}
-                  empty={bookList.empty}
-                  onOpen={openBook}
-                  onScan={() => model.selectTab("scan")}
                 />
               ) : null}
               {page === "account" ? (

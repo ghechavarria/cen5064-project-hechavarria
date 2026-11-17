@@ -1,40 +1,51 @@
 /**
- * Component: BookList — BookCards for TBR or Wanted, or an EmptyShelf card when there are none.
+ * Component: BookList — To be read or Wanted: the books under A–Z index
+ * headings in a CatalogList, with the A–Z rail on the right like every list.
+ * Empty, an EmptyShelf card that offers to scan (still pullable, to sync).
  */
-import { View } from "react-native";
+import { ReactElement } from "react";
+import { RefreshControlProps, ScrollView, View } from "react-native";
 import { Book } from "../../domain";
-import { BookCard } from "./BookCard";
+import { Catalog } from "../model/catalog";
+import { styles } from "../styles/bookList.styles";
+import { CatalogList, LetterSection } from "./CatalogList";
 import { EmptyShelf } from "./EmptyShelf";
-import { Reveal } from "./Reveal";
 
 export function BookList({
   books,
   empty,
+  resetKey,
   onOpen,
   onScan,
+  refreshControl,
 }: {
   books: Book[];
   empty: string;
+  resetKey: string;
   onOpen: (book: Book) => void;
   onScan: () => void;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }) {
   if (books.length === 0) {
     return (
-      <EmptyShelf
-        iconName="leaf-outline"
-        title="The shelf is quiet"
-        message={empty}
-        action={{ label: "Scan a book", onPress: onScan }}
-      />
+      <ScrollView refreshControl={refreshControl} showsVerticalScrollIndicator={false} contentContainerStyle={styles.empty}>
+        <EmptyShelf
+          iconName="leaf-outline"
+          title="The shelf is quiet"
+          message={empty}
+          action={{ label: "Scan a book", onPress: onScan }}
+        />
+      </ScrollView>
     );
   }
   return (
-    <View>
-      {books.map((book, index) => (
-        <Reveal key={book.isbn} index={index}>
-          <BookCard book={book} onOpen={onOpen} />
-        </Reveal>
-      ))}
+    <View style={styles.wrap}>
+      <CatalogList
+        sections={Catalog.sections(books, "az")}
+        resetKey={resetKey}
+        refreshControl={refreshControl}
+        renderSection={(section) => <LetterSection section={section} onOpen={onOpen} />}
+      />
     </View>
   );
 }
