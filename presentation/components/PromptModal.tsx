@@ -1,16 +1,38 @@
 /**
- * Component: PromptModal — the generic popup (title, body, optional extra
- * content, optional text input with a dropdown of names under it, an optional
- * note, and a column of buttons).
- * Every popup in the app is one of these.
+ * Components: PromptHost and PromptModal — every popup in the app.
+ *
+ * PromptHost is the one Modal and its dark overlay, open while any popup is.
+ * PromptModal is a popup's sheet (title, body, optional extra content, optional
+ * text input with a dropdown of names under it, an optional note, and a column
+ * of buttons). When one popup leads to the next, the overlay stays and only the
+ * sheet changes: the new one fades in and grows into place. With Reduce Motion
+ * on, it simply appears.
  */
-import { ReactNode } from "react";
-import { Modal, Text, View } from "react-native";
+import { ReactNode, useEffect, useRef } from "react";
+import { Animated, Modal, Text, View } from "react-native";
 import { PromptAction } from "../model/promptActions";
+import { useReducedMotion } from "../model/useReducedMotion";
+import { sheetEntrance, sheetEntranceStyle } from "../styles/feedback.styles";
 import { styles } from "../styles/promptModal.styles";
 import { Button } from "./Button";
 import { ChoiceDropdown } from "./ChoiceDropdown";
 import { TextField } from "./TextField";
+
+export function PromptHost({
+  visible,
+  onRequestClose,
+  children,
+}: {
+  visible: boolean;
+  onRequestClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onRequestClose}>
+      <View style={styles.overlay}>{children}</View>
+    </Modal>
+  );
+}
 
 export function PromptModal({
   visible,
@@ -19,7 +41,6 @@ export function PromptModal({
   input,
   note,
   actions,
-  onRequestClose,
   children,
 }: {
   visible: boolean;
@@ -37,43 +58,54 @@ export function PromptModal({
   // A line under the field that explains what the main button will do.
   note?: string;
   actions: PromptAction[];
-  onRequestClose: () => void;
   children?: ReactNode;
 }) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onRequestClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>{title}</Text>
-          {body ? <Text style={styles.body}>{body}</Text> : null}
-          {children}
-          {input ? (
-            <TextField
-              style={styles.input}
-              value={input.value}
-              onChangeText={input.onChangeText}
-              placeholder={input.placeholder}
-              autoFocus
-            />
-          ) : null}
-          {input?.choices && input.choices.names.length > 0 ? (
-            <ChoiceDropdown
-              label={input.choices.label}
-              names={input.choices.names}
-              selected={input.choices.selected}
-              onPick={input.onChangeText}
-            />
-          ) : null}
-          {note !== undefined ? (
-            <Text style={styles.note} accessibilityLiveRegion="polite">
-              {note}
-            </Text>
-          ) : null}
-          {actions.map((action) => (
-            <Button key={action.label} compact {...action} />
-          ))}
-        </View>
-      </View>
-    </Modal>
-  );
+  return visible ? (
+    <Sheet>
+      <Text style={styles.title}>{title}</Text>
+      {body ? <Text style={styles.body}>{body}</Text> : null}
+      {children}
+      {input ? (
+        <TextField
+          style={styles.input}
+          value={input.value}
+          onChangeText={input.onChangeText}
+          placeholder={input.placeholder}
+          autoFocus
+        />
+      ) : null}
+      {input?.choices && input.choices.names.length > 0 ? (
+        <ChoiceDropdown
+          label={input.choices.label}
+          names={input.choices.names}
+          selected={input.choices.selected}
+          onPick={input.onChangeText}
+        />
+      ) : null}
+      {note !== undefined ? (
+        <Text style={styles.note} accessibilityLiveRegion="polite">
+          {note}
+        </Text>
+      ) : null}
+      {actions.map((action) => (
+        <Button key={action.label} compact {...action} />
+      ))}
+    </Sheet>
+  ) : null;
+}
+
+// A sheet fades in and grows into place each time it appears.
+function Sheet({ children }: { children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduced) {
+      progress.setValue(1);
+      return;
+    }
+    Animated.timing(progress, { toValue: 1, ...sheetEntrance }).start();
+  }, [progress, reduced]);
+
+  return <Animated.View style={[styles.sheet, sheetEntranceStyle(progress)]}>{children}</Animated.View>;
 }

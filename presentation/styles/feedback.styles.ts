@@ -3,7 +3,7 @@
  * inside the rounded corners); iOS and web spring the surface in slightly
  * (0.96, the native-feeling amount). Lists rise into place with a short stagger.
  */
-import { Animated, Platform, StyleSheet } from "react-native";
+import { Animated, Easing, Platform, StyleSheet } from "react-native";
 import { theme } from "./theme";
 
 const android = Platform.OS === "android";
@@ -44,6 +44,26 @@ export const reveal = {
   maxStaggered: 8, // later cards share the last delay so long lists don't lag
   useNativeDriver,
 };
+
+/** A popup sheet appearing: a quick fade as it grows from just under full size. */
+export const sheetEntrance = { duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver };
+
+export function sheetEntranceStyle(progress: Animated.Value) {
+  return {
+    opacity: progress,
+    transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+  };
+}
+
+/** The Gifted before list opening: it fades in as it slides down a little. */
+export const listEntrance = { duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver };
+
+export function listEntranceStyle(progress: Animated.Value) {
+  return {
+    opacity: progress,
+    transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
+  };
+}
 
 export function pressScale(scale: Animated.Value) {
   return { transform: [{ scale }] };
