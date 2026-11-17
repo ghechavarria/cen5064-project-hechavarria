@@ -138,7 +138,7 @@ function LibraryScreen() {
         />
 
         {page === "tbr" && !model.locked ? (
-          // One slim row: Unread / Read, and the grouping button.
+          // One row: Unread / Read, and the grouping button.
           <ShelfFilters
             groupings={SHELF_SEGMENTS}
             grouping={state.tbrMode}
