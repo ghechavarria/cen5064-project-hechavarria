@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   },
   // Solid, unlike the glass cards, so the screen behind never shows through the text.
   sheet: {
-    backgroundColor: theme.card,
+    backgroundColor: theme.night,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.outline,
     ...softShadow,

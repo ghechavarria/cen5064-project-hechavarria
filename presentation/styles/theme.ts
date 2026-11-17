@@ -9,9 +9,9 @@ import { fonts } from "./fonts";
 export const theme = {
   bg: "#050E1C",
   surface: "#0C1A2E", // inputs, cover placeholders
-  card: "#12243C", // sheets and the menu dock (solid, so Android shadows draw cleanly)
-  glass: "rgba(9,20,38,0.86)", // book cards: dark glass with the forest faintly behind
-  panel: "rgba(18,36,60,0.82)", // a see-through card over the forest art
+  card: "#12243C", // the menu dock and a focused field (solid, so Android shadows draw cleanly)
+  glass: "rgba(9,20,38,0.86)", // every card and panel: dark glass with the forest faintly behind
+  night: "#091426", // the same dark blue, solid: popup sheets, so nothing shows through their text
   ink: "#E8F0F4", // main text
   muted: "#B7C9D6", // secondary text
   glow: "#7EF0E0", // primary actions, focus, selection, icons
@@ -90,7 +90,7 @@ export const scrim = {
 
 /** A see-through card for content sitting directly on the forest art. */
 export const panelSurface = {
-  backgroundColor: theme.panel,
+  backgroundColor: theme.glass,
   borderRadius: radius.xl,
   borderWidth: StyleSheet.hairlineWidth,
   borderColor: theme.outline,
