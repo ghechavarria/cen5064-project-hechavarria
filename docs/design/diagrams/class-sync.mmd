@@ -1,0 +1,38 @@
+classDiagram
+    direction LR
+    class SyncLibraryUseCase {
+        +execute(accountId) SyncReport
+        +signedIn(accountId, deviceOwner)
+        +adopt(fromOwner, toOwner)
+        +watch(accountId, onChange)
+    }
+    class SyncStore {
+        <<interface>>
+        +versions(ownerId) BookVersion[]
+        +unsentVersions(ownerId) BookVersion[]
+        +applyVersions(ownerId, versions) number
+        +markSent(ownerId, versions)
+        +syncCursor(ownerId) number
+        +saveSyncCursor(ownerId, cursor)
+    }
+    class LibraryBackup {
+        <<interface>>
+        +pull(ownerId, since) BackupChanges
+        +push(ownerId, versions)
+        +watch(ownerId, onChange)
+    }
+    class LiveChanges {
+        +watch(open, onChange)$
+    }
+    class ServerClock {
+        +now() number
+        +heard(dateHeader)
+    }
+    SyncLibraryUseCase --> SyncStore
+    SyncLibraryUseCase --> LibraryBackup
+    SqliteBookRepository ..|> SyncStore
+    MemoryBookRepository ..|> SyncStore
+    SupabaseLibraryBackup ..|> LibraryBackup
+    UnconfiguredLibraryBackup ..|> LibraryBackup
+    SupabaseLibraryBackup --> LiveChanges
+    SqliteBookRepository --> ServerClock : stamps

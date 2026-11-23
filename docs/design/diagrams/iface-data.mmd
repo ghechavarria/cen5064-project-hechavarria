@@ -13,8 +13,9 @@ classDiagram
     }
     class SyncStore {
         <<interface>>
-        +versions(ownerId) BookVersion[]
-        +applyVersions(ownerId, versions)
+        +versions / unsentVersions(ownerId)
+        +applyVersions / markSent(ownerId, versions)
+        +syncCursor / saveSyncCursor(ownerId)
     }
     class BookRowMapper {
         +toBook(row)$ Book

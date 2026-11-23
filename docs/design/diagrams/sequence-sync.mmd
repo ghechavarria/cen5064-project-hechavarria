@@ -2,24 +2,26 @@
 sequenceDiagram
     actor U as Bibliophile
     participant AM as Account<br/>Model
-    participant A as Accounts
     participant S as SyncLibrary<br/>UseCase
     participant L as SyncStore<br/>(phone)
     participant B as Library<br/>Backup
     participant LM as LibraryApp<br/>Model
     U->>AM: "Sign in"
-    AM->>A: signIn(email,<br/>password)
-    A-->>AM: Account
     AM->>S: signedIn(id)
-    S->>L: versions(id)
-    S->>B: pull(id)
-    Note over S: newer<br/>updatedAt<br/>wins
-    S->>L: apply newer<br/>remote
-    S->>B: push newer<br/>local
-    S->>S: adopt the<br/>phone's books
+    Note over S,B: first sync:<br/>compare all,<br/>newer wins
+    S->>L: saveSyncCursor
     AM->>B: watch(id)
-    AM->>LM: owner changed
-    LM-->>U: account's books
+    Note over B: live again<br/>(LiveChanges)
+    B-->>AM: catch up
+    U->>LM: delete a book
+    LM->>AM: sync()
+    AM->>S: execute(id)
+    S->>L: syncCursor(id)
+    S->>B: pull(id, cursor)
+    S->>L: applyVersions,<br/>save cursor
+    S->>L: unsentVersions
+    S->>B: push(unsent)
+    S->>L: markSent
     Note over B: another phone<br/>changes a book
     B-->>AM: Realtime notice
     AM->>S: execute(id)

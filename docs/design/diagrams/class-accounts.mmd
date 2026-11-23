@@ -9,26 +9,9 @@ classDiagram
         +signOut()
         +onChange(listener)
     }
-    class LibraryBackup {
-        <<interface>>
-        +pull(ownerId) BookVersion[]
-        +push(ownerId, versions)
-        +watch(ownerId, onChange)
-    }
-    class SyncStore {
-        <<interface>>
-        +versions(ownerId) BookVersion[]
-        +applyVersions(ownerId, versions)
-    }
     class AccountUseCase {
         <<abstract>>
         #accounts: Accounts
-    }
-    class SyncLibraryUseCase {
-        +execute(accountId) SyncReport
-        +signedIn(accountId, deviceOwner)
-        +adopt(fromOwner, toOwner)
-        +watch(accountId, onChange)
     }
     SignUpUseCase --|> AccountUseCase
     SignInUseCase --|> AccountUseCase
@@ -36,9 +19,5 @@ classDiagram
     AccountUseCase --> Accounts
     AccountUseCases *-- AccountUseCase : builds 3
     AccountUseCases *-- SyncLibraryUseCase
-    SyncLibraryUseCase --> SyncStore
-    SyncLibraryUseCase --> LibraryBackup
     SupabaseAccounts ..|> Accounts
     UnconfiguredAccounts ..|> Accounts
-    SupabaseLibraryBackup ..|> LibraryBackup
-    UnconfiguredLibraryBackup ..|> LibraryBackup

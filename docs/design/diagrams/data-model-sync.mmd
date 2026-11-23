@@ -5,6 +5,12 @@ erDiagram
         TEXT isbn
         INTEGER updated_at
         INTEGER deleted_at
+        INTEGER added_at
+        INTEGER unsent "1 until sent"
+    }
+    sync_cursors {
+        TEXT owner_id PK
+        INTEGER cursor "newest synced_at seen"
     }
     library_books {
         UUID owner_id PK, FK "auth.users"
@@ -12,5 +18,8 @@ erDiagram
         TEXT book_columns "same as books"
         BIGINT updated_at "ms; newest wins"
         BIGINT deleted_at "tombstone"
+        BIGINT added_at "first save"
+        BIGINT synced_at "server stamp"
     }
-    books |o..o| library_books : "synced (SyncLibraryUseCase)"
+    books |o..o| library_books : "synced"
+    sync_cursors ||..o{ books : "per owner"
