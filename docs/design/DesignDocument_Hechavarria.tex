@@ -1032,7 +1032,7 @@ The scope for the final is frozen to the four core features (Section~1.1): \text
 \hline
 12 (11/09 -- 11/15) & Verify all four features on a physical phone & Done for features 1--4 on two phones (November 7). The phones then exposed a browser delete that did not stick; its causes were fixed in Sprint 9 (ADR-013). \\
 \hline
-13 (11/16 -- 11/22) & Final review, demo, and SDD v1.6 & The final peer review (issue \#20) was answered: its design concern, a full download on every sync, became incremental sync. This document is updated (v1.6). Still to do: repeat the two-phone delete check with these fixes. \\
+13 (11/16 -- 11/22) & Final review, demo, and SDD v1.6 & The final peer review (issue \#20) was answered: its design concern, a full download on every sync, became incremental sync. This document is updated (v1.6). With these fixes the two-phone delete check passed (case 43). \\
 \hline
 \end{longtable}
 
@@ -1467,7 +1467,7 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \textbf{(40)} The Account tab shows a reading ring, four counts (each opening its list), pages read, top genres, gifts and the latest addition, worked out from a known library; each book's page ends with the day it was added (November 7, 2026 for books saved before added dates). & Verify the library at a glance and added dates & Web build \\
 \textbf{(41)} From a book's page, Acquired $\rightarrow$ Edit opens the acquisition popups with the giver's name filled in; a Wanted book cannot be given one; in the Gifted grouping the pen renames a giver on all their books, says how many, and offers to combine with someone already listed. & Verify editing gifts and renaming givers & Table~\ref{tab:tests} \\
 \textbf{(42)} To be read, Owned and Wanted each list their books under A--Z, author or series headings with the letter rail; in Gifted, each giver is filed under their own name. & Verify the groupings on every list & Table~\ref{tab:tests} \\
-\textbf{(43)} Two-phone check with these fixes: a delete made in the browser reaches the phone with no tap, also after the phone was locked for a minute. \emph{Not yet repeated} at the time of this version. & Verify auto sync on real devices & -- \\
+\textbf{(43)} Two-phone check with these fixes: a delete made in the browser reaches the phone with no tap. Passed (developer walkthrough on the phones after the fixes). & Verify auto sync on real devices & -- \\
 \bottomrule
 \end{longtable}
 
