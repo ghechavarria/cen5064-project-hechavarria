@@ -116,12 +116,13 @@ October 10, 2026
 
 \section*{Revisions}
 
-\begin{table}[H]
-\centering
-\begin{tabular}{|p{2cm}|p{4cm}|p{5.5cm}|l|}
+% Left-aligned, small, and free to continue on a second page (a longtable).
+\begin{small}
+\begin{longtable}{|L{1.2cm}|L{2.9cm}|L{8.8cm}|L{2.3cm}|}
 \hline
-\textbf{Version} & \textbf{Primary Author(s)} & \textbf{Description of Version} & \textbf{Date Completed} \\
+\textbf{Version} & \textbf{Author} & \textbf{Description of Version} & \textbf{Completed} \\
 \hline
+\endhead
 1.0 & Grace Hechavarria & Initial release: architecture, components, detailed design, sprint planning, design rationale, and verification of the midterm build. & October 10, 2026 \\
 \hline
 1.1 & Grace Hechavarria & Sprint 7 hardening: ISBN check-digit validation, one error type and a timeout for unreachable book sources, recovery from damaged storage, books unique per owner in SQLite, one ISBN-13 key per book (ADR-010); scope for the final frozen to four core features, with the second-half plan aligned to it; 145 automated tests. & October 18, 2026 \\
@@ -134,10 +135,10 @@ October 10, 2026
 \hline
 1.5 & Grace Hechavarria & Core feature 4 built: email accounts and library sync through Supabase (ADR-012) instead of the planned Google sign-in; sign-in required to see or add books; sync where the latest change wins, deletes travel as tombstones, and Realtime pushes changes to other phones; Expo SDK 58. Diagrams updated (Supabase in the C4 views, the account classes, the sign-in and sync sequence, the synced table); 195 automated tests. & November 7, 2026 \\
 \hline
-1.6 & Grace Hechavarria & Final peer review and testing on phones (ADR-013): sync sends and fetches only what changed (a server-stamped cursor), the server refuses an older change, the Realtime watch reopens itself and catches up, changes are stamped with the server's time, and the app syncs before its start-up backfill and every 30 s while on screen; pull to refresh. Additions after the four core features: the Account tab's library stats and highlights, each book's added date, editing how a book was acquired and renaming a giver, a Gifted grouping, and A--Z / Author / Series groupings with the letter rail on every list. Diagrams updated; Sprint 9 verification; 240 automated tests. & November 23, 2026 \\
+1.6 & Grace Hechavarria & Final peer review and phone testing (ADR-013): incremental sync with a server-stamped cursor, the newer change kept by the server, a Realtime watch that recovers, server-time stamps, and pull to refresh. Added after the core features: Account stats, added dates, editing gifts and givers, and groupings with the letter rail on every list. Diagrams updated; Sprint 9; 240 automated tests. & November 23, 2026 \\
 \hline
-\end{tabular}
-\end{table}
+\end{longtable}
+\end{small}
 
 \newpage
 
