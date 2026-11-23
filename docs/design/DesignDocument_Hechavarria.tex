@@ -433,6 +433,8 @@ Figure~\ref{fig:iface_sources} shows the lookup chain. Every element implements 
 
 \subsubsection{Accounts and Sync}
 
+Figure~\ref{fig:class_accounts} shows feature 4. The account use cases extend \texttt{AccountUseCase}, which holds the \texttt{Accounts} port; each checks the email and password in the domain (\texttt{Credentials}) before any network call.
+
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-accounts.png}
@@ -440,14 +442,14 @@ Figure~\ref{fig:iface_sources} shows the lookup chain. Every element implements 
 \label{fig:class_accounts}
 \end{figure}
 
+Figure~\ref{fig:class_sync} shows sync. \texttt{SyncLibraryUseCase} keeps the phone's copy (\texttt{SyncStore}) and the account's (\texttt{LibraryBackup}) in step, and per book the newer \texttt{updatedAt} wins. The first sync of an account on a device compares the two libraries book by book, and on the first sign-in the books kept on the phone move into the account, a book in both adding its copies. After that the sync is incremental (ADR-013): it pulls only the rows the server stored after the saved cursor (starting 30 seconds earlier, in case a slow write committed late), applies the newer ones, and pushes only the books marked unsent. Supabase implements both account ports, with \texttt{LiveChanges} keeping its Realtime watch alive and \texttt{ServerClock} correcting the device's clock; the Null Objects stand in when the app has no Supabase settings.
+
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth, height=0.9\textheight, keepaspectratio]{figures/class-sync.png}
 \caption{Sync Interface (ADR-012, ADR-013)}
 \label{fig:class_sync}
 \end{figure}
-
-Figure~\ref{fig:class_accounts} shows feature 4. The account use cases extend \texttt{AccountUseCase}, which holds the \texttt{Accounts} port; each checks the email and password in the domain (\texttt{Credentials}) before any network call. Figure~\ref{fig:class_sync} shows sync. \texttt{SyncLibraryUseCase} keeps the phone's copy (\texttt{SyncStore}) and the account's (\texttt{LibraryBackup}) in step, and per book the newer \texttt{updatedAt} wins. The first sync of an account on a device compares the two libraries book by book, and on the first sign-in the books kept on the phone move into the account, a book in both adding its copies. After that the sync is incremental (ADR-013): it pulls only the rows the server stored after the saved cursor (starting 30 seconds earlier, in case a slow write committed late), applies the newer ones, and pushes only the books marked unsent. Supabase implements both account ports, with \texttt{LiveChanges} keeping its Realtime watch alive and \texttt{ServerClock} correcting the device's clock; the Null Objects stand in when the app has no Supabase settings.
 
 \subsubsection{Device Adapters}
 
