@@ -1230,12 +1230,17 @@ Verification in software is defined by the IEEE 1012 standard as ``the process o
 
 MyHomeLib was verified in two complementary ways. First, \textbf{automated tests} (Jest) exercise every tier: 240 tests in 16 files, including one acceptance test file that drives each core feature end to end, including tests that walk the view model through each user flow without any user interface, persistence tests against a real SQLite database, tests that feed bad input and failing networks on purpose, and tests that enforce the architecture rules. Second, each user story was \textbf{walked through in the running application}, and the screenshots below show the results. The numbered cases match the Test-Case column of the RTM.
 
-\begin{table}[H]
-\centering
-\begin{tabular}{L{5cm} L{8cm} r}
+\begin{longtable}{L{5cm} L{8cm} r}
+\caption{Automated test suite results (\texttt{npm test}, November 23, 2026)}
+\label{tab:tests} \\
 \toprule
 \textbf{Test file} & \textbf{What it verifies} & \textbf{Tests} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Test file} & \textbf{What it verifies} & \textbf{Tests} \\
+\midrule
+\endhead
 domain.test.ts & Book and library rules: copies, acquisition, shelves, reading status & 17 \\
 useCases.test.ts & Every use case against in-memory adapters & 23 \\
 bookSources.test.ts & Open Library and Google Books parsing, merging, failures, caching & 16 \\
@@ -1255,10 +1260,7 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 \midrule
 \textbf{Total} & \textbf{Test Suites: 16 passed; Tests: 240 passed} & \textbf{240} \\
 \bottomrule
-\end{tabular}
-\caption{Automated test suite results (\texttt{npm test}, November 23, 2026)}
-\label{tab:tests}
-\end{table}
+\end{longtable}
 
 % ---------------- Sprint 4 ----------------
 \subsection{Sprint 1 -- Project Proposal and Approval}
@@ -1376,28 +1378,28 @@ architecture.test.ts & Tier dependency rules and stylesheet rules & 6 \\
 
 \begin{figure}[H]
     \centering
-    \screen[0.18\textwidth]{scan}\hfill\screen[0.18\textwidth]{scan-confirm}\hfill\screen[0.18\textwidth]{scan-cover-picked}
+    \screen[0.155\textwidth]{scan}\hfill\screen[0.155\textwidth]{scan-confirm}\hfill\screen[0.155\textwidth]{scan-cover-picked}
     \caption{Scan screen (left); the edition with its covers (center); choosing the second cover (right)}
     \label{fig:v_scan1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \screen[0.18\textwidth]{scan-binding}\hfill\screen[0.18\textwidth]{scan-shelf}\hfill\screen[0.18\textwidth]{scan-acquire}
+    \screen[0.155\textwidth]{scan-binding}\hfill\screen[0.155\textwidth]{scan-shelf}\hfill\screen[0.155\textwidth]{scan-acquire}
     \caption{Binding question (left), shelf choice (center), and acquisition for Owned (right)}
     \label{fig:v_scan2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \screen[0.18\textwidth]{scan-reading}\hfill\screen[0.18\textwidth]{scan-saved}\hfill\screen[0.18\textwidth]{scan-cancelled}
+    \screen[0.155\textwidth]{scan-reading}\hfill\screen[0.155\textwidth]{scan-saved}\hfill\screen[0.155\textwidth]{scan-cancelled}
     \caption{Reading question (left); the book is added (center); a cancelled scan adds nothing (right)}
     \label{fig:v_scan3}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \screen[0.18\textwidth]{mark-read}\hfill\screen[0.18\textwidth]{delete-confirm}\hfill\screen[0.18\textwidth]{unknown-isbn}
+    \screen[0.155\textwidth]{mark-read}\hfill\screen[0.155\textwidth]{delete-confirm}\hfill\screen[0.155\textwidth]{unknown-isbn}
     \caption{Marked read (left); delete confirmation (center); an unknown ISBN (right)}
     \label{fig:v_detail}
 \end{figure}
