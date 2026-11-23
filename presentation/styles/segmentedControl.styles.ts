@@ -1,4 +1,4 @@
-/** Styles for SegmentedControl (Unread/Read and A-Z/Author/Series switches). */
+/** Styles for SegmentedControl (the Owned and Wanted grouping switches). */
 import { StyleSheet } from "react-native";
 import { cardSurface, font, radius, space, text, theme } from "./theme";
 

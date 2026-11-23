@@ -31,6 +31,11 @@ export class LibraryView {
     return this.ownedByStatus[status];
   }
 
+  /** Every book on both shelves. */
+  get all(): Book[] {
+    return [...this.owned, ...this.wanted];
+  }
+
   find(isbn: string | null): Book | null {
     return isbn && this.library.has(isbn) ? this.library.get(isbn) : null;
   }
@@ -75,6 +80,14 @@ export class LibraryController {
 
   changeCover(isbn: string, coverUrl: string): Promise<Book> {
     return this.useCases.changeCover.execute(this.ownerId, isbn, coverUrl);
+  }
+
+  changeAcquisition(isbn: string, record: AcquisitionRecord): Promise<Book> {
+    return this.useCases.changeAcquisition.execute(this.ownerId, isbn, record);
+  }
+
+  renameGiver(from: string, to: string): Promise<number> {
+    return this.useCases.renameGiver.execute(this.ownerId, from, to);
   }
 
   async move(

@@ -86,7 +86,18 @@ export class SupabaseAccounts implements Accounts {
   }
 
   private static account(user: SupabaseUser): Account {
-    return { id: user.id, email: user.email ?? "" };
+    return { id: user.id, email: user.email ?? "", createdAt: SupabaseAccounts.time(user.created_at) };
+  }
+
+  // "2026-11-07T05:39:12.123456Z", read to the second by hand: not every JS
+  // engine parses six fractional digits.
+  private static time(iso: string | undefined): number | null {
+    const match = iso ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(iso) : null;
+    if (!match) {
+      return null;
+    }
+    const [year, month, day, hours, minutes, seconds] = match.slice(1).map(Number);
+    return Date.UTC(year, month - 1, day, hours, minutes, seconds);
   }
 }
 

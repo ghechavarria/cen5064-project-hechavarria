@@ -4,7 +4,7 @@
  */
 import { AcquisitionRecord } from "./acquisition";
 import { Acquisition, BookFormat, ReadingStatus, Shelf } from "./enums";
-import { GiftSourceRequiredError, NotAcquiredError } from "./exceptions";
+import { GiftSourceRequiredError, NotAcquiredError, NotOwnedError } from "./exceptions";
 
 /** Edition facts from the book sources that can be backfilled onto a Book. */
 export type BookFacts = {
@@ -27,6 +27,9 @@ export type BookProps = Partial<BookFacts> & {
   copyCount?: number;
   acquisition?: AcquisitionRecord | null;
   readingStatus?: ReadingStatus;
+  // When the book was added to the library (milliseconds since 1970); null for
+  // a book not saved yet: the store stamps it on its first save.
+  addedAt?: number | null;
 };
 
 export class Book {
@@ -45,6 +48,7 @@ export class Book {
   private _pageCount: number;
   private _subjects: string;
   private _format: BookFormat;
+  private readonly _addedAt: number | null;
 
   constructor(props: BookProps) {
     this._isbn = props.isbn;
@@ -62,6 +66,11 @@ export class Book {
     this._pageCount = props.pageCount ?? 0;
     this._subjects = props.subjects ?? "";
     this._format = props.format ?? BookFormat.UNKNOWN;
+    this._addedAt = props.addedAt ?? null;
+  }
+
+  get addedAt(): number | null {
+    return this._addedAt;
   }
 
   get isbn(): string {
@@ -131,6 +140,14 @@ export class Book {
       throw new GiftSourceRequiredError(this._isbn);
     }
     this._acquisition = record;
+  }
+
+  // A correction to how an Owned book was acquired (a Wanted book has none to correct).
+  changeAcquisition(record: AcquisitionRecord): void {
+    if (this._shelf !== Shelf.OWNED) {
+      throw new NotOwnedError();
+    }
+    this.acquire(record);
   }
 
   setReadingStatus(status: ReadingStatus): void {

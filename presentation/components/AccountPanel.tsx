@@ -1,16 +1,40 @@
 /**
  * Component: AccountPanel — the Account tab (core feature 4). Signed out, it
- * shows the form AccountModel is on (sign in, or create an account); signed in, it shows who is signed in with Sync now
- * and Sign out. It only renders AccountModel's state and forwards taps to it.
+ * shows the form AccountModel is on (sign in, or create an account); signed in,
+ * it shows the library at a glance (a count per shelf and reading list), the
+ * account's details (email, member since, last synced), Sync now and Sign out. It only renders the models' state and
+ * forwards taps to them.
  */
 import { Text, View } from "react-native";
 import { AccountForm, AccountModel, AccountState } from "../model/accountModel";
+import { Book } from "../../domain";
+import { LibraryStat, LibrarySummary } from "../model/libraryAppModel";
 import { styles } from "../styles/accountPanel.styles";
 import { Button } from "./Button";
+import { LibraryHighlights } from "./LibraryHighlights";
+import { LibraryStats } from "./LibraryStats";
 import { Tappable } from "./Tappable";
 import { TextField } from "./TextField";
 
-export function AccountPanel({ model, state }: { model: AccountModel; state: AccountState }) {
+type Detail = { label: string; value: string };
+
+export function AccountPanel({
+  model,
+  state,
+  details,
+  library,
+  onOpenBook,
+  onShowGifts,
+  onOpenStat,
+}: {
+  model: AccountModel;
+  state: AccountState;
+  details: Detail[];
+  library: LibrarySummary;
+  onOpenBook: (book: Book) => void;
+  onShowGifts: () => void;
+  onOpenStat: (key: LibraryStat["key"]) => void;
+}) {
   if (!state.configured) {
     return (
       <View style={styles.panel}>
@@ -19,14 +43,52 @@ export function AccountPanel({ model, state }: { model: AccountModel; state: Acc
       </View>
     );
   }
-  return state.account ? <SignedIn model={model} state={state} /> : <SignedOut model={model} state={state} />;
+  return state.account ? (
+    <SignedIn
+      model={model}
+      state={state}
+      details={details}
+      library={library}
+      onOpenBook={onOpenBook}
+      onShowGifts={onShowGifts}
+      onOpenStat={onOpenStat}
+    />
+  ) : (
+    <SignedOut model={model} state={state} />
+  );
 }
 
-function SignedIn({ model, state }: { model: AccountModel; state: AccountState }) {
+function SignedIn({
+  model,
+  state,
+  details,
+  library,
+  onOpenBook,
+  onShowGifts,
+  onOpenStat,
+}: {
+  model: AccountModel;
+  state: AccountState;
+  details: Detail[];
+  library: LibrarySummary;
+  onOpenBook: (book: Book) => void;
+  onShowGifts: () => void;
+  onOpenStat: (key: LibraryStat["key"]) => void;
+}) {
   return (
     <View style={styles.panel}>
-      <Text style={styles.body}>Signed in as</Text>
-      <Text style={styles.email}>{state.account?.email}</Text>
+      <Text style={styles.title}>Your library</Text>
+      <LibraryStats stats={library.stats} progress={library.progress} onOpenStat={onOpenStat} />
+      <LibraryHighlights highlights={library.highlights} onOpenBook={onOpenBook} onShowGifts={onShowGifts} />
+      <Text style={styles.title}>Your account</Text>
+      <View>
+        {details.map((detail) => (
+          <View key={detail.label} style={styles.detail} accessible accessibilityLabel={`${detail.label}: ${detail.value}`}>
+            <Text style={styles.detailLabel}>{detail.label}</Text>
+            <Text style={styles.detailValue}>{detail.value}</Text>
+          </View>
+        ))}
+      </View>
       <Notice state={state} />
       <View style={styles.actions}>
         <Button

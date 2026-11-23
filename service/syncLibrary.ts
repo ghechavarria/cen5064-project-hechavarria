@@ -2,8 +2,9 @@
  * Service: SyncLibraryUseCase — keeps the phone's copy of an account's library
  * and the account's backup in step (core feature 4, ADR-012).
  *
- * Offline-first: the phone's copy is always the one the app shows. A sync
- * compares the two copies book by book and the latest change wins; a deleted
+ * Offline-first: the phone's copy is always the one the app shows. Per book,
+ * the latest change wins (ADR-012); after the first sync only the changes
+ * since the last one travel (ADR-013). A deleted
  * book travels as a tombstone, so it is deleted on the other side too. If the
  * backup can't be reached, SyncUnavailableError is thrown and nothing is lost;
  * the next sync catches up.
@@ -20,17 +21,48 @@ export class SyncLibraryUseCase {
     private readonly backup: LibraryBackup,
   ) {}
 
+  // Incremental (ADR-013): fetch only what the backup stored after the last
+  // sync's cursor, and send only what changed on this phone since it was last
+  // sent. The first sync of an account on this phone has no cursor, so it
+  // compares the whole library instead.
   async execute(accountId: string): Promise<SyncReport> {
-    const [local, remote] = await Promise.all([this.store.versions(accountId), this.backup.pull(accountId)]);
-    const download = SyncLibraryUseCase.newerThan(remote, local);
-    const upload = SyncLibraryUseCase.newerThan(local, remote);
-    if (download.length > 0) {
-      await this.store.applyVersions(accountId, download);
+    const since = await this.store.syncCursor(accountId);
+    return since === null ? this.fullSync(accountId) : this.syncSince(accountId, since);
+  }
+
+  private async syncSince(accountId: string, since: number): Promise<SyncReport> {
+    const changes = await this.backup.pull(accountId, since);
+    const downloaded = await this.store.applyVersions(accountId, changes.versions);
+    await this.saveCursor(accountId, changes.cursor);
+    // Read after applying: a book just replaced by a newer copy isn't sent back.
+    const unsent = await this.store.unsentVersions(accountId);
+    if (unsent.length > 0) {
+      await this.backup.push(accountId, unsent);
+      await this.store.markSent(accountId, unsent);
     }
+    return { downloaded, uploaded: unsent.length };
+  }
+
+  private async fullSync(accountId: string): Promise<SyncReport> {
+    const [local, remote] = await Promise.all([this.store.versions(accountId), this.backup.pull(accountId, null)]);
+    const download = SyncLibraryUseCase.newerThan(remote.versions, local);
+    const upload = SyncLibraryUseCase.newerThan(local, remote.versions);
+    const downloaded = download.length > 0 ? await this.store.applyVersions(accountId, download) : 0;
     if (upload.length > 0) {
       await this.backup.push(accountId, upload);
     }
-    return { downloaded: download.length, uploaded: upload.length };
+    // Every local version is now on the backup, or was replaced by a newer one.
+    await this.store.markSent(accountId, local);
+    // An empty backup has no cursor yet: 0 means "everything", so the next sync
+    // is already incremental (it fetches what was just sent once, and ignores it).
+    await this.store.saveSyncCursor(accountId, remote.cursor ?? 0);
+    return { downloaded, uploaded: upload.length };
+  }
+
+  private async saveCursor(accountId: string, cursor: number | null): Promise<void> {
+    if (cursor !== null) {
+      await this.store.saveSyncCursor(accountId, cursor);
+    }
   }
 
   // Calls onChange when another phone changes this account's backup, so the

@@ -43,6 +43,12 @@ export class NotAcquiredError extends DomainError {
   }
 }
 
+export class NotOwnedError extends DomainError {
+  constructor() {
+    super("Only an Owned book records how you got it.");
+  }
+}
+
 export class GiftSourceRequiredError extends DomainError {
   constructor(isbn: string) {
     super(`Gifted book ${isbn} needs the name of the person who gifted it`);

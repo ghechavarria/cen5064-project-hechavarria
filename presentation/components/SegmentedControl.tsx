@@ -1,6 +1,6 @@
 /**
  * Component: SegmentedControl — a row of tabs with one selected.
- * Reused for TBR's Unread / Read and the Owned catalog's A–Z / Author / Series.
+ * Reused for the Owned and Wanted groupings (A–Z / Author / Series / Gifted).
  */
 import { Ionicons } from "@expo/vector-icons";
 import { ComponentProps } from "react";

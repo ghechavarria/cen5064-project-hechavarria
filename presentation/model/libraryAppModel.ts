@@ -20,6 +20,7 @@ import { CameraUnavailableError, CoverCamera } from "./coverCamera";
 import { DeviceFamily, Feedback } from "./devices";
 import { Labels } from "./labels";
 import { LibraryController, LibraryView } from "./libraryController";
+import { LibraryInsights } from "./libraryInsights";
 import { Observable } from "./observable";
 import { ScanDraft } from "./scanDraft";
 
@@ -39,7 +40,8 @@ type Prompt =
   | AcquisitionPrompt
   | { kind: "giftName"; onChoose: (record: AcquisitionRecord) => void; onCancel: () => void }
   | { kind: "reading"; body: string; onChoose: (status: ReadingStatus) => void; onCancel: () => void }
-  | { kind: "delete"; book: Book };
+  | { kind: "delete"; book: Book }
+  | { kind: "renameGiver"; from: string };
 
 type AcquisitionPrompt = {
   kind: "acquire";
@@ -48,20 +50,47 @@ type AcquisitionPrompt = {
   onCancel: () => void;
 };
 
+/** One count on the Account tab's library tiles. */
+export type LibraryStat = { key: "owned" | "toRead" | "read" | "wanted"; label: string; count: number };
+
+/** How much of the owned shelf has been read: the counts, a headline, and a line of encouragement. */
+export type ReadingProgress = { read: number; owned: number; headline: string; note: string };
+
+/** The Account tab's highlights, worded for display (LibraryInsights works them out). */
+export type LibraryHighlights = {
+  pages: { text: string; share: number } | null; // null while no book has a page count
+  genres: string[];
+  gifts: { text: string; count: number };
+  latest: { book: Book; added: string } | null;
+};
+
+/** Everything the Account tab shows about the library. */
+export type LibrarySummary = { stats: LibraryStat[]; progress: ReadingProgress; highlights: LibraryHighlights };
+
 export type AppState = {
   ready: boolean;
   view: LibraryView;
   tab: MenuTab;
   screen: Screen;
   reading: ReadingStatus;
-  catalogMode: CatalogMode;
+  catalogMode: CatalogMode; // the Owned tab's grouping
+  wantedMode: CatalogMode; // the Wanted tab's grouping (A–Z, Author or Series)
+  tbrMode: CatalogMode; // To be read's grouping (A–Z, Author or Series)
   selectedIsbn: string | null;
   isbnDraft: string;
   giftName: string;
   flash: { text: string; tone: FlashTone } | null;
   busy: boolean;
+  refreshing: boolean; // a pull-down sync is running (the list shows its spinner)
   prompt: Prompt | null;
 };
+
+/** What the Rename popup would do, worded for it; `to` is the name the books will carry. */
+type RenamePlan = { title: string; body: string; note: string; action: string; canSave: boolean; to: string };
+
+/** The groupings each catalog tab offers. */
+export const OWNED_MODES: CatalogMode[] = ["az", "author", "series", "gifts"];
+export const SHELF_MODES: CatalogMode[] = ["az", "author", "series"]; // To be read and Wanted
 
 const TAB_HEADINGS: Record<MenuTab, string> = {
   tbr: "To be read",
@@ -96,11 +125,14 @@ export class LibraryAppModel extends Observable<AppState> {
       screen: "main",
       reading: ReadingStatus.UNREAD,
       catalogMode: "az",
+      wantedMode: "az",
+      tbrMode: "az",
       selectedIsbn: null,
       isbnDraft: "",
       giftName: "",
       flash: null,
       busy: false,
+      refreshing: false,
       prompt: null,
     });
     // One family, so the camera and the feedback always belong to the same platform.
@@ -159,31 +191,103 @@ export class LibraryAppModel extends Observable<AppState> {
     return !busy && prompt === null && !this.locked;
   }
 
+  /** The signed-in account's basic facts, for the Account tab; empty when signed out. */
+  get accountDetails(): { label: string; value: string }[] {
+    const state = this.account?.getState();
+    if (!state?.account) {
+      return [];
+    }
+    const synced =
+      state.sync === "syncing"
+        ? "Syncing now"
+        : state.lastSynced === null
+          ? "Not yet"
+          : Labels.moment(state.lastSynced, Date.now());
+    return [
+      { label: "Email", value: state.account.email },
+      { label: "Member since", value: state.account.createdAt === null ? "" : Labels.day(state.account.createdAt) },
+      { label: "Last synced", value: synced },
+    ].filter((detail) => detail.value !== "");
+  }
+
+  /** The library at a glance, for the Account tab: how many titles on each shelf and reading list. */
+  /** The Account tab's library section: counts, reading progress and highlights. */
+  get librarySummary(): LibrarySummary {
+    return { stats: this.libraryStats, progress: this.readingProgress, highlights: this.libraryHighlights };
+  }
+
+  get libraryHighlights(): LibraryHighlights {
+    const { pages, genres, gifts, latest } = LibraryInsights.of(this.getState().view);
+    const giftCount = Labels.count(gifts.count, "gift");
+    return {
+      pages:
+        pages.total === 0
+          ? null
+          : { text: `${pages.read.toLocaleString()} of ${pages.total.toLocaleString()}`, share: pages.read / pages.total },
+      genres,
+      gifts: {
+        count: gifts.count,
+        text:
+          gifts.count === 0
+            ? "No gifts yet"
+            : gifts.topGiver === null
+              ? giftCount
+              : `${giftCount}, ${gifts.count === 1 ? "from" : "most from"} ${gifts.topGiver}`,
+      },
+      latest: latest ? { book: latest, added: latest.addedAt === null ? "" : `Added ${Labels.day(latest.addedAt)}` } : null,
+    };
+  }
+
+  get libraryStats(): LibraryStat[] {
+    const { view } = this.getState();
+    return [
+      { key: "owned", label: "Owned", count: view.owned.length },
+      { key: "toRead", label: "To read", count: view.toBeRead(ReadingStatus.UNREAD).length },
+      { key: "read", label: "Read", count: view.toBeRead(ReadingStatus.READ).length },
+      { key: "wanted", label: "Wanted", count: view.wanted.length },
+    ];
+  }
+
+  /** How much of the owned shelf has been read, for the Account tab's progress bar. */
+  get readingProgress(): ReadingProgress {
+    const { view } = this.getState();
+    const owned = view.owned.length;
+    const read = view.toBeRead(ReadingStatus.READ).length;
+    const waiting = owned - read;
+    if (owned === 0) {
+      return { read, owned, headline: "No books yet", note: "Scan a book onto Owned to start your shelves." };
+    }
+    const note =
+      waiting === 0
+        ? "Every book you own is read."
+        : `${Labels.count(waiting, "book is", "books are")} waiting on your shelves.`;
+    return { read, owned, headline: `${read} of ${owned} read`, note };
+  }
+
+  /** Pulling a book list down syncs it: only when someone is signed in to sync with. */
+  get canRefresh(): boolean {
+    return this.account !== null && !this.locked;
+  }
+
   /** What fills the screen: one of the four tabs, or a book's detail. */
   get page(): MenuTab | "detail" {
     const { screen, tab } = this.getState();
     return screen === "detail" ? "detail" : tab;
   }
 
-  /** TBR and Wanted are plain book lists: which books, and what to say when there are none. */
+  /** To be read: the owned books for the reading switch, and what to say when there are none; null on other pages. */
   get bookList(): { books: Book[]; empty: string } | null {
     const { view, reading } = this.getState();
-    switch (this.page) {
-      case "tbr":
-        return { books: view.toBeRead(reading), empty: "Scan an ISBN onto Owned." };
-      case "wanted":
-        return { books: view.wanted, empty: "Scan an ISBN onto Wanted." };
-      default:
-        return null;
-    }
+    return this.page === "tbr" ? { books: view.toBeRead(reading), empty: "Scan an ISBN onto Owned." } : null;
   }
 
   /** TBR's Unread / Read switch, with a count on each side. */
-  get readingSegments(): { key: ReadingStatus; label: string; read: boolean }[] {
+  get readingSegments(): { key: ReadingStatus; label: string; count: number; read: boolean }[] {
     const { view } = this.getState();
     return Object.values(ReadingStatus).map((status) => ({
       key: status,
-      label: `${Labels.readingTitle(status)} ${view.toBeRead(status).length}`,
+      label: Labels.readingTitle(status),
+      count: view.toBeRead(status).length,
       read: status === ReadingStatus.READ,
     }));
   }
@@ -204,9 +308,14 @@ export class LibraryAppModel extends Observable<AppState> {
       this.account.watchOwner((ownerId) => void this.switchOwner(ownerId));
       this.account.watchLibrary(() => void this.reload());
     }
-    this.setState({ ready: true, view: await this.viewOf(controller), busy: true });
+    // Signed out, every shelf is locked: open where signing in happens.
+    const tab = this.locked ? "account" : this.getState().tab;
+    this.setState({ ready: true, view: await this.viewOf(controller), tab, busy: true });
     try {
       if (!this.locked) {
+        // Sync first: a book deleted on another device while this one was
+        // closed must not be re-saved (and so revived) by the backfill (ADR-013).
+        await this.account?.sync();
         await controller.fillMissingFacts();
         this.setState({ view: await this.viewOf(controller) });
       }
@@ -215,12 +324,33 @@ export class LibraryAppModel extends Observable<AppState> {
     } finally {
       this.setState({ busy: false });
     }
-    void this.account?.sync();
+    void this.account?.sync(); // sends whatever the backfill filled in
   }
 
   dispose(): void {
     this.clearFlashTimer();
     this.account?.dispose();
+  }
+
+  /**
+   * Pull to refresh: sync now (only what changed since the last sync, ADR-013).
+   * New books from another phone reload the shelves through watchLibrary.
+   * Offline, the list stays as it is and a banner says it will sync later.
+   */
+  async refresh(): Promise<void> {
+    const account = this.account;
+    if (!account || !this.canRefresh || this.getState().refreshing) {
+      return;
+    }
+    this.setState({ refreshing: true });
+    try {
+      await account.sync();
+    } finally {
+      this.setState({ refreshing: false });
+    }
+    if (account.getState().sync === "waiting") {
+      this.flash("Couldn't reach your account. Your books are saved on this phone and will sync later.");
+    }
   }
 
   // --- Navigation and inputs ---
@@ -235,6 +365,48 @@ export class LibraryAppModel extends Observable<AppState> {
     this.setState({ reading });
   }
 
+  /** An Account tab tile opens the list it counts. */
+  openStat(key: LibraryStat["key"]): void {
+    switch (key) {
+      case "owned":
+        this.selectTab("owned");
+        if (this.getState().catalogMode === "gifts") {
+          this.setCatalogMode("az"); // every owned book, not only the gifts
+        }
+        return;
+      case "toRead":
+      case "read":
+        this.selectTab("tbr");
+        this.showReading(key === "read" ? ReadingStatus.READ : ReadingStatus.UNREAD);
+        return;
+      case "wanted":
+        this.selectTab("wanted");
+        return;
+    }
+  }
+
+  /** Every gifted book: the Owned catalog, grouped by who gave them. */
+  showGifts(): void {
+    this.selectTab("owned");
+    this.setCatalogMode("gifts");
+  }
+
+  /** Wanted's grouping switch; it has no Gifted (a wanted book isn't yours yet). */
+  setWantedMode(wantedMode: CatalogMode): void {
+    if (SHELF_MODES.includes(wantedMode)) {
+      this.tickIfChanged(wantedMode, this.getState().wantedMode);
+      this.setState({ wantedMode });
+    }
+  }
+
+  /** To be read's small grouping switch, above Unread / Read. */
+  setTbrMode(tbrMode: CatalogMode): void {
+    if (SHELF_MODES.includes(tbrMode)) {
+      this.tickIfChanged(tbrMode, this.getState().tbrMode);
+      this.setState({ tbrMode });
+    }
+  }
+
   setCatalogMode(catalogMode: CatalogMode): void {
     this.tickIfChanged(catalogMode, this.getState().catalogMode);
     this.setState({ catalogMode });
@@ -242,6 +414,69 @@ export class LibraryAppModel extends Observable<AppState> {
 
   setIsbnDraft(isbnDraft: string): void {
     this.setState({ isbnDraft });
+  }
+
+  /**
+   * Past givers for the "Gifted before" dropdown under "Who gifted it?": every
+   * one, most gifts first, in the same order while typing. `selected` is the one
+   * the name typed matches, shown checked.
+   */
+  get giverChoices(): { names: string[]; selected: string | null } {
+    const typed = this.getState().giftName.trim().toLowerCase();
+    const names = LibraryInsights.givers(this.getState().view).map((giver) => giver.name);
+    return { names, selected: names.find((name) => name.toLowerCase() === typed) ?? null };
+  }
+
+  /**
+   * The Rename popup, worded from what Save would do: rename the giver on their
+   * books, or, when the name typed is someone already listed, combine the two.
+   * Save stays off until the name actually changes.
+   */
+  get renamePlan(): RenamePlan | null {
+    const { prompt, giftName } = this.getState();
+    if (prompt?.kind !== "renameGiver") {
+      return null;
+    }
+    const { from } = prompt;
+    const to = giftName.trim();
+    const givers = LibraryInsights.givers(this.getState().view);
+    const own = givers.find((giver) => giver.name.toLowerCase() === from.toLowerCase());
+    const other = givers.find(
+      (giver) => giver.name.toLowerCase() === to.toLowerCase() && giver.name.toLowerCase() !== from.toLowerCase(),
+    );
+    return {
+      title: `Rename ${from}`,
+      body: `${from} gave you ${Labels.count(own?.gifts ?? 0, "book")}. Type the name as it should read on ${own?.gifts === 1 ? "it" : "all of them"}.`,
+      note: other
+        ? `${other.name} is already listed with ${Labels.count(other.gifts, "book")}. All of them will be listed under ${other.name}.`
+        : "",
+      action: other ? `Combine with ${other.name}` : "Rename",
+      canSave: to !== "" && to !== from,
+      // Combining keeps the spelling already listed, whatever capitals were typed.
+      to: other?.name ?? to,
+    };
+  }
+
+  /** The pen beside a giver in the Gifted list: rename them on every book they gave. */
+  askRenameGiver(from: string): void {
+    this.setState({ prompt: { kind: "renameGiver", from }, giftName: from });
+  }
+
+  confirmRenameGiver(): Promise<void> {
+    const { prompt } = this.getState();
+    const plan = this.renamePlan;
+    if (prompt?.kind !== "renameGiver" || !plan?.canSave) {
+      return Promise.resolve(); // nothing to change yet: the popup stays open
+    }
+    const combined = plan.note !== "";
+    const to = plan.to;
+    return this.run(async (library) => {
+      const count = await library.renameGiver(prompt.from, to);
+      this.flash(
+        combined ? `Combined: ${prompt.from}'s ${Labels.count(count, "book")} now listed under ${to}.` : `Renamed ${prompt.from} to ${to}.`,
+      );
+      this.setState({ giftName: "" });
+    });
   }
 
   setGiftName(giftName: string): void {
@@ -370,6 +605,23 @@ export class LibraryAppModel extends Observable<AppState> {
     } else {
       askReading();
     }
+  }
+
+  /** Correct how the open (Owned) book was acquired: the same popups as when it was added. */
+  editAcquisition(): void {
+    const book = this.selected;
+    if (!book || book.shelf !== Shelf.OWNED) {
+      return;
+    }
+    // The giver's name is filled in, ready to fix a typo.
+    this.setState({ giftName: book.giftedBy ?? "" });
+    this.askAcquisition("Purchased, or a gift? A gift keeps the giver's name.", (record) => {
+      void this.run(async (library) => {
+        const saved = await library.changeAcquisition(book.isbn, record);
+        this.flash(`Saved: ${saved.acquisition?.describe() ?? "updated"}.`);
+        this.setState({ giftName: "" });
+      });
+    });
   }
 
   toggleReading(): Promise<void> {
